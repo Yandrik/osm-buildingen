@@ -162,7 +162,7 @@ does not depend on element order.
 
 ## Not done / open
 
-- Core ignores `parts` so far; the Minster renders as one massing block.
+- Core builds `parts`; special buildings are still emitted with `detail: 'massing'`.
 - `roof:angle`, `building:material`, `roof:material` are not read.
 - Vector tiles (OpenMapTiles schema) have their own adapter; see
   [vector-tiles.md](vector-tiles.md).
