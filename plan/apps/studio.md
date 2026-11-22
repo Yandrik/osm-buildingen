@@ -100,7 +100,7 @@ on the Ulm fixture and the permalink round trip of parts / neighbours / roads.
   street wall green, entrances as dots.
 - Parameters: every optional field has an auto state (undefined) and shows the
   resolved value from `debug.spec` greyed next to it: type, levels, height,
-  min height, year (shows era), has address, shop, shop probability, entrance,
+  min height, year (shows era), has address, shop, shop probability, balconies, entrance,
   parts ("N parts (read-only)" with "remove parts", only when there are parts), roof
   shape / height / levels / direction / ridge, colours (picker + clear),
   region, modernity, group key, detail, base elevation.
@@ -113,7 +113,7 @@ on the Ulm fixture and the permalink round trip of parts / neighbours / roads.
 - 3D view with orbit controls, ground, hemisphere + sun with shadows,
   wireframe toggle, neighbours as translucent grey massing blocks.
 - Inspector: resolved spec (era, level heights, roof, palette swatches, wall
-  style, facade variant, symmetric, shop, bay width), notes (highlighted when
+  style, facade variant, symmetric, shop, balconies, bay width), notes (highlighted when
   non-empty), walls with context (street score, open fraction, blocked and
   shared spans), facade grid per wall as a table of tile ids (rows top to
   bottom, blocked cells shaded, entrances marked, street wall tagged), solver

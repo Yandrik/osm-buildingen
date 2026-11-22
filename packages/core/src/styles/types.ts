@@ -149,6 +149,36 @@ export interface PlatformStyle {
   leanTo: Curve;
 }
 
+/** Railing of a balcony: solid panels, glass, thin metal bars, or wooden boards. */
+export type RailingKind = 'solid' | 'glass' | 'bars' | 'wood';
+
+/**
+ * How balconies spread over a wall. Whatever is picked repeats on every upper
+ * storey, so balconies always line up:
+ *   single  one balcony per wall, near the middle
+ *   rhythm  balconies with a gap of one bay between them, across the wall
+ *   band    one balcony along each run of windows
+ */
+export type BalconyLayout = 'single' | 'rhythm' | 'band';
+
+/** Balconies, placed after the facade solve (see plan/pipeline/04-facade-wfc.md). */
+export interface BalconyStyle {
+  /** Probability per building of having balconies at all. */
+  chance: Curve;
+  railings: Weighted<RailingKind>;
+  /** Colours of bar railings. */
+  metal: Weighted<string>;
+  /** Colours of wooden railings and their slab. */
+  wood: Weighted<string>;
+  /** Slab depth in metres. */
+  depth: Curve;
+  layouts: Weighted<BalconyLayout>;
+  /** Bays (windows) per balcony; above 1 several windows share one balcony. */
+  spans: Weighted<number>;
+  /** Probability of balconies on a second wall, the one facing away from the first. */
+  secondWall: Curve;
+}
+
 /** Horizontal trim on the walls. Probabilities per building. */
 export interface TrimStyle {
   /** Slim band at every level line. */
@@ -202,6 +232,13 @@ export interface TypeStyle {
   platform?: PlatformStyle;
   /** Level bands and cornice. Left out = none. */
   trim?: TrimStyle;
+  /** Balconies on upper storeys. Needs a tile with role 'balcony' (the door). Left out = none. */
+  balconies?: BalconyStyle;
+  /**
+   * Probability of a ground-floor store when the input does not decide (`shop`,
+   * `shopProbability`). Left out = the type never gets one. Needs shop tiles.
+   */
+  shop?: Curve;
 }
 
 export interface StylePack {

@@ -30,7 +30,7 @@ export interface Settings {
   detail: DetailMode;
   /** Auto detail: tiles within this distance (m) of the camera target are full detail. */
   autoRadius: number;
-  /** Townhouse store probability; null = style pack default. */
+  /** Ground-floor store probability (houses, apartments, townhouses); null = style pack default. */
   shopProbability: number | null;
   /** Tile edge in metres. */
   tileSize: number;

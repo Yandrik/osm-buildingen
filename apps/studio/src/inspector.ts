@@ -120,6 +120,7 @@ function specSection(s: ResolvedSpec): HTMLElement {
       ['facade variant', s.facadeVariant || '—'],
       ['symmetric', s.symmetric ? 'yes' : 'no'],
       ['shop', s.shop ? 'yes' : 'no'],
+      ['balconies', balconyText(s.balcony)],
       ['bay width', `${fmt(s.bayWidth)} m`],
       ['footprint', `${fmt(s.metrics.area, 1)} m², rect. ${fmt(s.metrics.rectangularity)}`],
       ['palette', paletteView(s.palette)],
@@ -204,4 +205,10 @@ function meshSection(mesh: BuildingMesh, elapsed: number): HTMLElement {
       ...Object.entries(timings).map(([k, v]): [string, Child] => [`· ${k}`, `${fmt(v, 3)} ms`]),
     ]),
   );
+}
+
+function balconyText(b: ResolvedSpec['balcony']): string {
+  return b
+    ? `${b.railing}, ${b.layout}, ${b.span} bay${b.span > 1 ? 's' : ''}${b.secondWall ? ', 2 walls' : ''}`
+    : 'no';
 }

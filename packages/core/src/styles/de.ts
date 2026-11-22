@@ -1,5 +1,6 @@
 import type { BuildingType } from '../types';
 import type {
+  BalconyStyle,
   CanopyStyle,
   Curve,
   FacadeTile,
@@ -11,6 +12,7 @@ import type {
   TileRole,
   TrimStyle,
   TypeStyle,
+  Weighted,
 } from './types';
 
 /**
@@ -175,6 +177,29 @@ const residentialWindows: FacadeTile[] = [
   }),
 ];
 
+/** Glazed door onto a balcony; placed by the balcony pass, never by the solver. */
+export const BALCONY_DOOR: FacadeTile = tile('balcony_door', 'balconyDoor', 'balcony', { rows: UP });
+
+export const SHOP_TILES: readonly FacadeTile[] = [
+  tile('shopfront', 'shopfront', 'shop', { rows: GROUND, params: { base: 0.4 } }),
+  tile('shopdoor', 'shopfront', 'shopdoor', { rows: GROUND, params: { base: 0.4, door: 1 } }),
+];
+
+/** Bar railings: mostly black and anthracite. */
+export const METAL: Weighted<string> = [
+  ['#26282b', 3],
+  ['#3d4145', 2],
+  ['#ecebe6', 1],
+  ['#2f4a3a', [[0, 1], [1, 0.2]]],
+];
+
+export const WOOD: Weighted<string> = [
+  ['#8a5a32', 2],
+  ['#6e4a2c', 2],
+  ['#a8743e', 1],
+  ['#5a3c26', 1],
+];
+
 const house: TypeStyle = {
   levelHeight: [[0, 2.7], [0.25, 3.05], [0.5, 2.75], [1, 2.9]],
   groundExtra: 0,
@@ -215,16 +240,36 @@ const house: TypeStyle = {
       rows: GROUND,
       params: { w: 1.05, h: 2.1, canopy: 1, step: 1, glass: 0.35 },
     }),
-    tile('balcony', 'balcony', 'balcony', {
-      rows: UP,
-      weight: [[0.4, 0], [0.6, 0.5], [1, 0.8]],
-      minWidth: 2.4,
-      params: { depth: 1.1 },
-    }),
+    BALCONY_DOOR,
+    ...SHOP_TILES,
   ],
   sockets: STACKING,
   symmetry: [[0, 0.6], [0.5, 0.4], [1, 0.25]],
   trim: OLD_TRIM,
+  balconies: {
+    chance: [[0, 0.1], [0.4, 0.15]],
+    railings: [
+      ['solid', 1],
+      ['bars', 1.5],
+      ['wood', [[0, 2], [0.5, 1], [1, 0.3]]],
+      ['glass', [[0.6, 0], [1, 1.5]]],
+    ],
+    metal: METAL,
+    wood: WOOD,
+    depth: [[0, 1.0], [1, 1.3]],
+    layouts: [
+      ['single', 4],
+      ['band', [[0, 0.5], [1, 1]]],
+    ],
+    spans: [
+      [1, 2],
+      [2, 2],
+      [3, 1],
+    ],
+    secondWall: 0.15,
+  },
+  // Only on request: a detached house rarely has a shop.
+  shop: 0,
 };
 
 const apartments: TypeStyle = {
@@ -252,16 +297,34 @@ const apartments: TypeStyle = {
       rows: GROUND,
       params: { w: 1.3, h: 2.2, canopy: 1, step: 1, glass: 0.6 },
     }),
-    tile('balcony', 'balcony', 'balcony', {
-      rows: UP,
-      weight: [[0.2, 0], [0.4, 1], [1, 2.2]],
-      minWidth: 2.4,
-      params: { depth: 1.3 },
-    }),
-    tile('shopfront', 'shopfront', 'shop', { rows: GROUND, params: { base: 0.4 }, h: 'w' }),
-    tile('shopdoor', 'shopfront', 'shopdoor', { rows: GROUND, params: { base: 0.4, door: 1 } }),
+    BALCONY_DOOR,
+    ...SHOP_TILES,
   ],
   symmetry: [[0, 0.7], [1, 0.5]],
+  balconies: {
+    chance: [[0, 0.15], [0.4, 0.25], [1, 0.4]],
+    railings: [
+      ['solid', 2],
+      ['bars', 1.5],
+      ['wood', [[0, 0.5], [1, 0.2]]],
+      ['glass', [[0.6, 0], [1, 2]]],
+    ],
+    metal: METAL,
+    wood: WOOD,
+    depth: [[0, 1.1], [1, 1.5]],
+    layouts: [
+      ['rhythm', 4],
+      ['band', [[0, 0.5], [1, 2]]],
+      ['single', 0.5],
+    ],
+    spans: [
+      [1, 3],
+      [2, 2],
+      [3, 0.5],
+    ],
+    secondWall: 0.5,
+  },
+  shop: [[0, 0.15], [0.6, 0.08]],
 };
 
 const townhouse: TypeStyle = {
@@ -280,6 +343,8 @@ const townhouse: TypeStyle = {
     ['plain', 1],
     ['timber', [[0, 1.2], [0.15, 0.4], [0.3, 0]]],
   ],
+  balconies: { ...(apartments.balconies as BalconyStyle), chance: [[0, 0.1], [1, 0.2]] },
+  shop: 0.35,
 };
 
 const garage: TypeStyle = {

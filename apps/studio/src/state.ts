@@ -271,7 +271,7 @@ export function parseInput(value: unknown): { input: BuildingInput } | { error: 
   const bad = badFields(
     value,
     ['height', 'levels', 'minHeight', 'year', 'shopProbability', 'baseElevation'],
-    ['hasAddress', 'shop', 'entrance', 'debug'],
+    ['hasAddress', 'shop', 'balconies', 'entrance', 'debug'],
   );
   if (bad) return { error: bad };
   if (value.groupKey !== undefined && typeof value.groupKey !== 'string') {

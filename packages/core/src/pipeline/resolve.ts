@@ -10,6 +10,7 @@ import {
   type BuildingType,
   type FootprintMetrics,
   type Palette,
+  type ResolvedBalcony,
   type ResolvedRoof,
   type ResolvedSpec,
   type RoofShape,
@@ -84,6 +85,42 @@ function guessType(input: BuildingInput, m: FootprintMetrics): BuildingType {
   if (m.area > 1500 && m.rectangularity > 0.8) return 'industrial';
   if (m.area > 400) return 'apartments';
   return 'house';
+}
+
+/**
+ * Building-wide balcony choices. Whether and how are rolled per group, so all parts
+ * of a building agree; the walls and bays are picked in the facade stage.
+ */
+function resolveBalcony(
+  input: BuildingInput,
+  style: TypeStyle,
+  era: number,
+  group: Rng,
+  root: Rng,
+  /** The part has a storey above the ground row. */
+  hasUpper: boolean,
+  notes: string[],
+): ResolvedBalcony | null {
+  const b = style.balconies;
+  if (!b || !hasUpper || input.balconies === false) return null;
+  if (!style.tiles.some((t) => t.role === 'balcony')) {
+    notes.push('balconies: no balcony tile in the style, left out');
+    return null;
+  }
+  if (input.balconies !== true && !group.fork('balcony').chance(evalCurve(b.chance, era))) return null;
+  const railing = pickWeighted(group.fork('railing'), b.railings, era) ?? 'solid';
+  const colour =
+    railing === 'wood'
+      ? pickColour(group.fork('railingColour'), b.wood, era, 0x8a5a32)
+      : pickColour(group.fork('railingColour'), b.metal, era, 0x26282b);
+  return {
+    railing,
+    colour,
+    depth: mm(evalCurve(b.depth, era)),
+    layout: pickWeighted(root.fork('balconyLayout'), b.layouts, era) ?? 'single',
+    span: Math.max(1, pickWeighted(root.fork('balconySpan'), b.spans, era) ?? 1),
+    secondWall: root.fork('balconyWalls').chance(evalCurve(b.secondWall, era)),
+  };
 }
 
 function roofHeightFromPitch(shape: RoofShape, pitchDeg: number, halfSpan: number): number {
@@ -272,8 +309,10 @@ export function resolve(input: BuildingInput): ResolvedSpec {
 
   let shop = false;
   if (type === 'store') shop = true;
-  else if (type === 'townhouse') shop = input.shop ?? root.fork('shop').chance(input.shopProbability ?? 0.35);
-  else if (type === 'apartments') shop = input.shop ?? false;
+  else if (style.shop !== undefined && style.tiles.some((t) => t.role === 'shop'))
+    shop = input.shop ?? root.fork('shop').chance(input.shopProbability ?? evalCurve(style.shop, era));
+
+  const balcony = resolveBalcony(input, style, era, group, root, levels > 1 || base >= 0.5, notes);
 
   return {
     type,
@@ -293,6 +332,7 @@ export function resolve(input: BuildingInput): ResolvedSpec {
     symmetric,
     attachedGarage,
     shop,
+    balcony,
     bayWidth: mm(evalCurve(style.bayWidth, era)),
     plinthHeight: mm(evalCurve(style.plinth, era)),
     notes,

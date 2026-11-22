@@ -24,7 +24,8 @@ interface BuildingInput {
   year?: number;                      // construction year, overrides the era roll
   hasAddress?: boolean;               // classification hint
   shop?: boolean;                     // force / forbid a ground-floor store
-  shopProbability?: number;           // townhouses, when `shop` is not set
+  shopProbability?: number;           // types whose style allows a store, when `shop` is not set
+  balconies?: boolean;                // force / forbid balconies where the type has them
   entrance?: boolean;                 // false = no entrance door
   neighbours?: NeighbourInput[];      // { footprint, height?, minHeight?, sameGroup? }
   roads?: RoadInput[];                // { line, width?, kind?, passage? }

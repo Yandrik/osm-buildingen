@@ -180,6 +180,7 @@ export function createParams(
   const addrF = field('hasAddress');
   const shopF = field('shop');
   const shopPF = field('shopProbability');
+  const balconyF = field('balconies');
   const entranceF = field('entrance');
   const groupF = field('groupKey');
   const detailF = field('detail');
@@ -202,6 +203,7 @@ export function createParams(
         boolRow('has address', addrF.get, addrF.set, null),
         boolRow('shop', shopF.get, shopF.set, (s) => (s.shop ? 'yes' : 'no')),
         numberRow('shop prob.', shopPF.get, shopPF.set, null, { step: 0.05, min: 0, max: 1 }),
+        boolRow('balconies', balconyF.get, balconyF.set, (s) => s.balcony?.railing ?? 'no'),
         boolRow('entrance', entranceF.get, entranceF.set, null),
         partsRow(),
       ],

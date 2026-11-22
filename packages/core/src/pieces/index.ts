@@ -1,4 +1,4 @@
-import { balcony } from './balcony';
+import { balconyDoor } from './balcony';
 import { door, garageDoor } from './door';
 import { shopfront } from './shopfront';
 import type { Piece } from './types';
@@ -14,5 +14,5 @@ export const PIECES: Readonly<Record<string, Piece>> = {
   door,
   garageDoor,
   shopfront,
-  balcony,
+  balconyDoor,
 };

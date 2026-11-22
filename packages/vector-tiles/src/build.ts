@@ -75,7 +75,7 @@ export interface VectorBuildOptions {
   bbox?: LatLonBBox;
   /** Mixed into every building seed; change it to re-roll a whole town. */
   seed?: string | number;
-  /** Passed through to every input (townhouse shop probability). */
+  /** Passed through to every input (ground-floor store probability). */
   shopProbability?: number;
   /** Most neighbours passed per building, nearest first. Default 16. */
   maxNeighbours?: number;

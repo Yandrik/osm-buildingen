@@ -11,9 +11,12 @@ export { GENERATOR_VERSION } from './version';
 export { registerStylePack, getStylePack, listStylePacks, validateStylePack } from './styles/registry';
 export { evalCurve } from './styles/types';
 export type {
+  BalconyLayout,
+  BalconyStyle,
   Curve,
   FacadeTile,
   PaletteSet,
+  RailingKind,
   RowKind,
   SocketTable,
   StylePack,

@@ -5,6 +5,7 @@ import { MeshBuilder } from '../mesh/builder';
 import type { Frame } from '../mesh/frame';
 import { PIECES, type PieceContext } from '../pieces';
 import { arch } from '../pieces/arch';
+import { addBalcony } from '../pieces/balcony';
 import { seedFrom } from '../rng';
 import { getStylePack } from '../styles/registry';
 import type { FacadeTile } from '../styles/types';
@@ -88,6 +89,7 @@ export function assemble(
       const frame = wallFrame(wall, cell.x, cell.y, cell.width, cell.height);
       if (cell.role === 'arch') arch(mb, frame, { ...ctx, timber: false }, cell.openings ?? []);
       else piece?.(mb, frame, ctx);
+      if (cell.balcony && spec.balcony) addBalcony(mb, frame, spec.balcony, cell.balcony, palette, spec.era);
     }
   } else {
     walls.forEach((wall, w) => {

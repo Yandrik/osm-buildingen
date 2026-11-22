@@ -54,7 +54,8 @@ One is rolled per plot in resolve; tiles naming another variant are removed
 before solving. This keeps one building from mixing window styles.
 
 Tiles with role door, garage, shop, shopdoor or dock are never placed by the
-solver; only the rules in step 2 place them.
+solver; only the rules in step 2 place them. Role balcony (the balcony door) is
+placed only by the balcony pass (step 5).
 
 ## Solve order
 
@@ -73,6 +74,23 @@ solver; only the rules in step 2 place them.
 4. **Contradiction.** Restart with attempt number mixed into the seed, at
    most 8 times. After that, the remaining cells become `blank`. Both the
    attempt count and the fallback are recorded in `debug`.
+5. **Balconies** (`facade/balconies.ts`), after the solve and the mirroring,
+   only when resolve rolled `spec.balcony`. Scattered single-cell balconies
+   looked random, so they are planned per wall and repeated on every upper
+   storey:
+   - a column qualifies when it holds an open window cell (at least 1.6 m
+     wide) on every upper row;
+   - the first wall is drawn weighted by qualifying columns (street wall
+     x0.6, courtyards x0.5); with `secondWall` the best wall facing away from
+     it (normal dot product below -0.5) follows;
+   - layout `single`: one balcony of `span` bays in the run nearest the wall
+     centre; `rhythm`: balconies of `span` bays with one bay gap, centred in
+     each run; `band`: one balcony per run;
+   - a balcony over several bays keeps windows between its doors: one door
+     for one or two bays, then a door on every second bay.
+   Cells covered get `balcony: { left, right }` (does the slab continue into
+   that neighbour); assembly draws the slab and railing per cell and only the
+   outer ends get side railings.
 
 ## Implementation notes
 

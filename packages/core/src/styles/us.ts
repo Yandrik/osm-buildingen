@@ -1,5 +1,5 @@
 import type { BuildingType } from '../types';
-import { GROUND, LOOSE, STACKING, UP, deTypes, tile } from './de';
+import { BALCONY_DOOR, GROUND, LOOSE, SHOP_TILES, STACKING, UP, deTypes, tile } from './de';
 import type { FacadeTile, PaletteSet, StylePack, TypeStyle } from './types';
 
 /**
@@ -159,9 +159,8 @@ const apartments: TypeStyle = {
     tile('blank', 'wall', 'blank', { weight: 0.7 }),
     ...houseWindows,
     tile('door', 'door', 'door', { rows: GROUND, params: { w: 1.3, h: 2.2, canopy: 1, step: 1, glass: 0.6 } }),
-    tile('balcony', 'balcony', 'balcony', { rows: UP, weight: 1.2, minWidth: 2.4, params: { depth: 1.3 } }),
-    tile('shopfront', 'shopfront', 'shop', { rows: GROUND, params: { base: 0.4 } }),
-    tile('shopdoor', 'shopfront', 'shopdoor', { rows: GROUND, params: { base: 0.4, door: 1 } }),
+    BALCONY_DOOR,
+    ...SHOP_TILES,
   ],
   roofShapes: [
     ['flat', [[0, 3], [1, 6]]],

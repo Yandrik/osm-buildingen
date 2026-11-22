@@ -21,6 +21,8 @@ interface TypeStyle {
   sockets: SocketTable;
   trim: TrimStyle;                  // plinth, level bands, corner boards, eaves
   roofDetails: RoofDetailStyle;
+  balconies?: BalconyStyle;         // chance, railings, colours, depth, layouts, spans
+  shop?: EraCurve;                  // default ground-floor store probability; absent = never
   symmetry: number;                 // 0..1 probability of a mirrored street wall
 }
 ```

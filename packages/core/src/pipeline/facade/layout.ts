@@ -13,13 +13,17 @@ import type {
 import { GENERATOR_VERSION } from '../../version';
 import { isBlocked } from '../context';
 import { railSides } from '../platform';
+import { type CellBalcony, placeBalconies } from './balconies';
 import { DOWN, LEFT, RIGHT, type SolverProblem, UP, solve } from './solver';
 
 /** Walls shorter than this get one cell that stays blank. */
 const MIN_WALL = 1.2;
 const MAX_ATTEMPTS = 8;
-/** Roles the solver may place on its own. Everything else is placed by the rules below. */
-const FREE_ROLES: readonly TileRole[] = ['blank', 'window', 'balcony'];
+/**
+ * Roles the solver may place on its own. Everything else is placed by the rules below;
+ * balconies come after the solve (balconies.ts) so they line up storey by storey.
+ */
+const FREE_ROLES: readonly TileRole[] = ['blank', 'window'];
 
 interface Cell extends FacadeCell {
   kind: RowKind;
@@ -249,8 +253,7 @@ export function layoutFacade(
       const shopDoor = byRole('shopdoor', kind, width);
       const door = byRole('door', kind, width);
       const sorted = [...free].sort((a, b) => a - b);
-      const isShop = spec.type === 'store' || spec.type === 'townhouse' || spec.type === 'apartments';
-      if (isShop) {
+      if (spec.shop) {
         // House entrance at one end (if there is room), shop door in the middle, glass elsewhere.
         const end = rng.fork('entrance').chance(0.5) ? sorted[0] : sorted[sorted.length - 1];
         if (spec.type !== 'store' && sorted.length >= 3 && end !== undefined)
@@ -382,6 +385,23 @@ export function layoutFacade(
     }
   }
 
+  // --- Balconies: whole storeys at once, after the solve and the mirroring. ---
+  const rowKinds: RowKind[] = [];
+  for (let row = 0; row < levels; row++) rowKinds.push((cells[cellAt(0, row, 0)] as Cell).kind);
+  const balconies: Map<number, CellBalcony> =
+    spec.balcony && !fallback && cells.length > 0
+      ? placeBalconies(
+          spec.balcony,
+          { cells, columns, rowKinds, cellAt },
+          walls,
+          context,
+          tiles,
+          chosen,
+          streetWall,
+          rng.fork('balconies'),
+        )
+      : new Map();
+
   const out: FacadeCell[] = cells.map((cell, index) => ({
     wall: cell.wall,
     column: cell.column,
@@ -405,6 +425,7 @@ export function layoutFacade(
       : {
           tile: (tiles[chosen[index] as number] as FacadeTile).id,
           role: (tiles[chosen[index] as number] as FacadeTile).role,
+          ...(balconies.has(index) ? { balcony: balconies.get(index) } : {}),
         }),
   }));
   return { cells: out, streetWall: wantsEntrance ? streetWall : -1, attempts, fallback };

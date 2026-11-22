@@ -137,6 +137,7 @@ function specRows(spec: ResolvedSpec): [string, Child][] {
     ],
     ['facade variant', spec.facadeVariant || '–'],
     ['shop', spec.shop ? 'yes' : 'no'],
+    ['balconies', spec.balcony ? `${spec.balcony.railing}, ${spec.balcony.layout}` : 'no'],
     ['symmetric', spec.symmetric ? 'yes' : 'no'],
     ['bay width', `${fmt(spec.bayWidth)} m`],
     ['footprint', `${fmt(spec.metrics.area, 0)} m², rect. ${fmt(spec.metrics.rectangularity)}`],

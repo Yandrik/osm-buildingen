@@ -127,6 +127,7 @@ function partInput(
     hasAddress: input.hasAddress,
     shop: input.shop,
     shopProbability: input.shopProbability,
+    balconies: input.balconies,
     roads: input.roads,
     // One palette, era and facade variant for all parts.
     groupKey: input.groupKey ?? `self:${input.seed}`,

@@ -1,7 +1,7 @@
 import type { Colour } from './colour';
 import type { OrientedBox, Polygon } from './geom/polygon';
 import type { Vec2 } from './geom/vec2';
-import type { TileRole } from './styles/types';
+import type { BalconyLayout, RailingKind, TileRole } from './styles/types';
 
 export type { Polygon, Ring } from './geom/polygon';
 export type { Vec2 } from './geom/vec2';
@@ -128,8 +128,13 @@ export interface BuildingInput {
   hasAddress?: boolean;
   /** Force (true) or forbid (false) a ground-floor store where the type allows one. */
   shop?: boolean;
-  /** Probability of a ground-floor store for townhouses when `shop` is not set. */
+  /**
+   * Probability of a ground-floor store when `shop` is not set, for every type whose
+   * style allows one (German pack: house, apartments, townhouse). Default: the style's.
+   */
   shopProbability?: number;
+  /** Force (true) or forbid (false) balconies where the type has them. */
+  balconies?: boolean;
   /** Set to false for a building without an entrance door (default true). */
   entrance?: boolean;
   /**
@@ -224,10 +229,25 @@ export interface ResolvedSpec {
   attachedGarage: boolean;
   /** Ground floor store. */
   shop: boolean;
+  /** Building-wide balcony look, or null for none. */
+  balcony: ResolvedBalcony | null;
   bayWidth: number;
   plinthHeight: number;
   /** Things the generator decided or fell back to, for debugging. */
   notes: string[];
+}
+
+export interface ResolvedBalcony {
+  railing: RailingKind;
+  /** Bar or wood colour; solid and glass railings use the palette. */
+  colour: Colour;
+  /** Slab depth, metres. */
+  depth: number;
+  layout: BalconyLayout;
+  /** Bays per balcony. */
+  span: number;
+  /** Also on the wall facing away from the first one. */
+  secondWall: boolean;
 }
 
 /** Piecewise-linear top edge of a wall: t along the wall (0..1) and height above the eave. */
@@ -320,6 +340,8 @@ export interface FacadeCell {
   params?: Record<string, number>;
   /** Passage openings in an '#arch' cell, in order along the wall. */
   openings?: FacadeOpening[];
+  /** A balcony runs in front of this cell; `left`/`right`: it continues into that neighbour. */
+  balcony?: { left: boolean; right: boolean };
 }
 
 /** One end of a passage where it meets a wall (see plan/pipeline/03-context.md, "Passages"). */

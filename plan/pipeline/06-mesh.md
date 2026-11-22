@@ -33,8 +33,9 @@ opening. Windows are real insets: wall border, reveal, glass, optional frame
 and sill. Everything scales to the cell size; proportions come from `params`.
 
 Pieces planned: wall, window (plain, framed, mullioned, tall, band), door
-(main with optional canopy and step), garage door, shopfront, balcony (slab,
-railing, door behind), arch, timber frame overlay, loading dock, curtain wall
+(main with optional canopy and step), garage door, shopfront, balcony door
+(slab and railing drawn per cell by `addBalcony` from `cell.balcony`; railings
+solid, glass, bars or wood), arch, timber frame overlay, loading dock, curtain wall
 panel, dormers, chimney, parapet, AC unit, skylight, solar panel.
 
 ## Assembly
