@@ -24,6 +24,8 @@ interface Cell extends FacadeCell {
   narrow: boolean;
   /** Index of a tile fixed before solving, or -1. */
   fixed: number;
+  /** Set when a road passes through this cell: opening edges (cell-local) and clear height. */
+  passage: { from: number; to: number; height: number } | null;
 }
 
 interface Tables {
@@ -64,6 +66,8 @@ function buildCells(
   const cells: Cell[] = [];
   const columns: number[] = [];
   const levels = spec.levelHeights.length;
+  // A part that starts above the ground (tower top, bridge) has no ground row.
+  const grounded = spec.base < 0.5;
   walls.forEach((wall, w) => {
     const narrow = wall.length < MIN_WALL;
     const n = narrow ? 1 : Math.max(1, Math.round(wall.length / spec.bayWidth));
@@ -73,7 +77,8 @@ function buildCells(
     let y = 0;
     for (let row = 0; row < levels; row++) {
       const height = spec.levelHeights[row] as number;
-      const kind: RowKind = row === 0 ? 'ground' : row === levels - 1 ? 'top' : 'upper';
+      const kind: RowKind =
+        row === 0 && grounded ? 'ground' : row === levels - 1 && row > 0 ? 'top' : 'upper';
       for (let column = 0; column < n; column++) {
         const x = column * width;
         cells.push({
@@ -89,12 +94,19 @@ function buildCells(
           kind,
           narrow,
           fixed: -1,
+          passage: null,
+          role: 'blank',
         });
       }
       y += height;
     }
   });
   return { cells, columns };
+}
+
+/** The columns an attached garage takes: `count` from one end of the sorted free columns. */
+function garageCells(sorted: number[], fromLeft: boolean, count: number): number[] {
+  return fromLeft ? sorted.slice(0, count) : sorted.slice(sorted.length - count);
 }
 
 /** Columns ordered from the middle outward: 2,1,3,0,4 for five columns. */
@@ -139,6 +151,23 @@ export function layoutFacade(
   const byRole = (role: TileRole, kind: RowKind, width: number): number =>
     tiles.findIndex((t) => t.role === role && t.rows.includes(kind) && (t.minWidth ?? 0) <= width);
 
+  const grounded = spec.base < 0.5;
+  const blankGround = tiles.findIndex((t) => t.role === 'blank' && t.blockedOk && t.rows.includes('ground'));
+
+  // --- Passages: ground cells a road runs through become arch cells. ---
+  if (grounded && blankGround >= 0) {
+    walls.forEach((_, w) => {
+      for (const span of (context[w] as WallContext).passages) {
+        for (let c = 0; c < (columns[w] as number); c++) {
+          const cell = cells[cellAt(w, 0, c)] as Cell;
+          if (cell.narrow || span.to <= cell.x + 0.05 || span.from >= cell.x + cell.width - 0.05) continue;
+          cell.passage = { from: span.from - cell.x, to: span.to - cell.x, height: span.height };
+          cell.fixed = blankGround; // solved as plain wall, drawn as an arch
+        }
+      }
+    });
+  }
+
   // --- Street wall: best street score, else the longest open wall. ---
   let streetWall = -1;
   let bestScore = 0;
@@ -148,7 +177,7 @@ export function layoutFacade(
     const hasFreeGround = Array.from(
       { length: columns[w] as number },
       (_, c) => cells[cellAt(w, 0, c)] as Cell,
-    ).some((c) => !c.blocked);
+    ).some((c) => !c.blocked && c.fixed < 0);
     if (!hasFreeGround) return;
     // Without roads every streetScore is 0, so fall back to open length; courtyards last.
     const score = ctx.streetScore * 1000 + wall.length * ctx.openFraction * (ctx.courtyard ? 0.1 : 1);
@@ -165,11 +194,14 @@ export function layoutFacade(
     return true;
   };
 
-  if (streetWall >= 0) {
+  // Entrances are only placed on grounded buildings that want one.
+  const wantsEntrance = grounded && input.entrance !== false;
+  if (streetWall >= 0 && wantsEntrance) {
     const n = columns[streetWall] as number;
-    const free = centreOut(n, rng.fork('side').chance(0.5)).filter(
-      (c) => !(cells[cellAt(streetWall, 0, c)] as Cell).blocked,
-    );
+    const free = centreOut(n, rng.fork('side').chance(0.5)).filter((c) => {
+      const cell = cells[cellAt(streetWall, 0, c)] as Cell;
+      return !cell.blocked && cell.fixed < 0;
+    });
     const width = (cells[cellAt(streetWall, 0, 0)] as Cell).width;
     const kind: RowKind = 'ground';
     const glazedGround = spec.shop || spec.type === 'office' || spec.type === 'skyscraper';
@@ -210,6 +242,18 @@ export function layoutFacade(
       }
       for (const c of sorted) fix(cellAt(streetWall, 0, c), shop);
     } else if (free.length > 0) {
+      // Attached garage: one or two doors at one end of the street wall, entrance beside them.
+      if (spec.attachedGarage && free.length >= 3) {
+        const garage = byRole('garage', kind, width);
+        const sorted = [...free].sort((a, b) => a - b);
+        const fromLeft = rng.fork('garageSide').chance(0.5);
+        const doors = sorted.length >= 5 && rng.fork('garageCount').chance(0.5) ? 2 : 1;
+        for (let i = 0; i < doors; i++) {
+          const c = fromLeft ? sorted[i] : sorted[sorted.length - 1 - i];
+          if (c !== undefined) fix(cellAt(streetWall, 0, c), garage);
+        }
+        for (const c of [...garageCells(sorted, fromLeft, doors)]) free.splice(free.indexOf(c), 1);
+      }
       // Plain entrance. Symmetric buildings take the exact middle; others may sit one bay off.
       const pick = spec.symmetric || free.length < 3 ? 0 : rng.fork('doorColumn').weightedIndex([3, 1, 1]);
       fix(
@@ -306,7 +350,12 @@ export function layoutFacade(
     width: cell.width,
     height: cell.height,
     blocked: cell.blocked,
-    tile: (tiles[chosen[index] as number] as FacadeTile).id,
+    ...(cell.passage
+      ? { tile: '#arch', role: 'arch' as const, params: cell.passage }
+      : {
+          tile: (tiles[chosen[index] as number] as FacadeTile).id,
+          role: (tiles[chosen[index] as number] as FacadeTile).role,
+        }),
   }));
-  return { cells: out, attempts, fallback };
+  return { cells: out, streetWall: wantsEntrance ? streetWall : -1, attempts, fallback };
 }

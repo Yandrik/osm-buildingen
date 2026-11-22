@@ -489,8 +489,10 @@ describe('generateBuilding with skeleton roofs', () => {
         expect(meshProblem(mesh)).toBeNull();
         const spec = mesh.debug?.spec as ResolvedSpec;
         expect(failed(spec)).toBe(false);
-        // The ridge is exactly where the spec says.
-        expect(mesh.bounds.max[1]).toBeCloseTo(spec.base + spec.wallHeight + 3.5, 3);
+        // The ridge is where the spec says; a chimney may stand up to a metre above it.
+        const ridge = spec.base + spec.wallHeight + 3.5;
+        expect(mesh.bounds.max[1]).toBeGreaterThan(ridge - 1e-3);
+        expect(mesh.bounds.max[1]).toBeLessThan(ridge + 1);
       }
     }
   });

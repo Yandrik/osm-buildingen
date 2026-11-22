@@ -6,11 +6,12 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b && pnpm -r --if-present typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",
     "studio": "pnpm --filter @osm-buildingen/studio dev",
-    "viewer": "pnpm --filter @osm-buildingen/viewer dev"
+    "viewer": "pnpm --filter @osm-buildingen/viewer dev",
+    "golden:update": "UPDATE_GOLDEN=1 vitest run packages/core/test/golden"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

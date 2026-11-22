@@ -18,6 +18,7 @@ Low-poly procedural building generator for three.js. Read `plan/README.md` first
 - `pnpm test` – vitest, all packages
 - `pnpm typecheck` – `tsc -b`
 - `pnpm lint` / `pnpm format` – biome
+- `pnpm golden:update` – rewrite the golden hashes after a deliberate output change
 
 All three must pass before a change is done.
 

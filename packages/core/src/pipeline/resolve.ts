@@ -237,6 +237,9 @@ export function resolve(input: BuildingInput): ResolvedSpec {
     ? (pickWeighted(group.fork('variant'), style.variants, era) ?? '')
     : '';
   const symmetric = root.fork('symmetry').chance(evalCurve(style.symmetry, era));
+  const attachedGarage =
+    style.attachedGarage !== undefined &&
+    root.fork('attachedGarage').chance(evalCurve(style.attachedGarage, era));
 
   let shop = false;
   if (type === 'store') shop = true;
@@ -259,6 +262,7 @@ export function resolve(input: BuildingInput): ResolvedSpec {
     wallStyleFromLevel,
     facadeVariant,
     symmetric,
+    attachedGarage,
     shop,
     bayWidth: mm(evalCurve(style.bayWidth, era)),
     plinthHeight: mm(evalCurve(style.plinth, era)),

@@ -66,6 +66,26 @@ save(
   { azimuth: 25, elevation: 28, width: 2000, height: 900 },
 );
 
+// US houses across eras.
+save(
+  `${out}/houses-us.png`,
+  grid(
+    [0, 1, 2].flatMap((row) =>
+      eras.map((m) =>
+        make({
+          type: 'house',
+          footprint: { outer: rect(13, 8) },
+          style: { region: 'us', modernity: m },
+          seed: `u${row}-${m}`,
+        }),
+      ),
+    ),
+    6,
+    20,
+  ),
+  { azimuth: 25, elevation: 28 },
+);
+
 const t0 = performance.now();
 let tris = 0;
 for (let i = 0; i < 300; i++) tris += make({ type: 'house', seed: i }).indices.length / 3;

@@ -4,6 +4,7 @@ import type { Vec2 } from '../geom/vec2';
 import { MeshBuilder } from '../mesh/builder';
 import type { Frame } from '../mesh/frame';
 import { PIECES, type PieceContext } from '../pieces';
+import { arch } from '../pieces/arch';
 import { seedFrom } from '../rng';
 import { getStylePack } from '../styles/registry';
 import type { FacadeTile } from '../styles/types';
@@ -14,8 +15,10 @@ import type {
   RoofGeometry,
   Vec3,
   Vec3In,
+  WallContext,
   WallSegment,
 } from '../types';
+import { addRoofDetails } from './roofDetails';
 
 /** Thickness of the roof slab where it overhangs. */
 const ROOF_THICKNESS = 0.16;
@@ -29,6 +32,7 @@ export function assemble(
   spec: ResolvedSpec,
   walls: WallSegment[],
   roof: RoofGeometry,
+  context: WallContext[],
   facade: FacadeLayout | null,
   baseElevation: number,
   seed: string | number,
@@ -64,12 +68,14 @@ export function assemble(
         params: tile?.params ?? {},
         palette,
         wall: palette.wall,
-        plinth: cell.row === 0 ? Math.min(spec.plinthHeight, cell.height * 0.4) : 0,
+        plinth: cell.row === 0 && spec.base < 0.5 ? Math.min(spec.plinthHeight, cell.height * 0.4) : 0,
         timber,
         era: spec.era,
         seed: seedFrom(seed, cell.wall, cell.row, cell.column),
       };
-      piece?.(mb, wallFrame(wall, cell.x, cell.y, cell.width, cell.height), ctx);
+      const frame = wallFrame(wall, cell.x, cell.y, cell.width, cell.height);
+      if (cell.role === 'arch') arch(mb, frame, { ...ctx, params: cell.params ?? {}, timber: false });
+      else piece?.(mb, frame, ctx);
     }
   } else {
     for (const wall of walls) {
@@ -163,6 +169,8 @@ export function assemble(
       );
     }
   }
+
+  if (facade) addRoofDetails({ mb, spec, walls, context, roof, baseElevation, seed });
 
   void eave;
   return mb.finish();

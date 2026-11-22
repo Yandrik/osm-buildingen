@@ -83,7 +83,9 @@ describe('generateBuilding', () => {
     expect(mesh.debug?.spec.levelHeights.length).toBe(3);
     expect(mesh.debug?.spec.wallHeight).toBeCloseTo(12, 2);
     const gabled = generateBuilding(base({ height: 12, roof: { shape: 'gabled', height: 4 } }));
-    expect(gabled.bounds.max[1]).toBeCloseTo(12, 1);
+    // A chimney may stand a little above the ridge.
+    expect(gabled.bounds.max[1]).toBeGreaterThan(11.95);
+    expect(gabled.bounds.max[1]).toBeLessThan(13);
   });
 
   it('keeps openings off blocked walls', () => {
@@ -137,5 +139,107 @@ describe('generateBuilding', () => {
       generateBuilding(base({ footprint: { outer: rect(20, 18), holes: [hole] }, type: 'apartments' })),
     );
     checkMesh(generateBuilding(base({ detail: 'massing' })));
+  });
+});
+
+describe('parts, passages and entrances', () => {
+  const part = (x: number, w: number, levels: number, minLevel = 0) => ({
+    footprint: {
+      outer: [
+        [x, 0],
+        [x + w, 0],
+        [x + w, 10],
+        [x, 10],
+      ] as Vec2[],
+    },
+    levels,
+    minLevel,
+    roof: { shape: 'flat' as const },
+  });
+
+  it('builds parts instead of the outline, with one entrance and a shared palette', () => {
+    const mesh = generateBuilding(
+      base({
+        type: 'office',
+        footprint: { outer: rect(30, 10) },
+        parts: [part(0, 18, 6), part(18, 12, 3)],
+        debug: true,
+      }),
+    );
+    checkMesh(mesh);
+    const parts = mesh.debug?.parts ?? [];
+    expect(parts.length).toBe(2);
+    // Wall, roof and trim are plot-wide; the door colour is per part.
+    for (const key of ['wall', 'roof', 'trim', 'frame'] as const) {
+      expect(parts[0]?.spec.palette[key]).toBe(parts[1]?.spec.palette[key]);
+    }
+    expect(parts[0]?.spec.levelHeights.length).toBe(6);
+    expect(parts[1]?.spec.levelHeights.length).toBe(3);
+    const doors = parts.flatMap((p) => p.facade?.cells.filter((c) => c.role === 'door') ?? []);
+    expect(doors.length).toBe(1);
+    // The low part's wall towards the tall part is blocked over its whole height.
+    const low = parts[1];
+    const sharedWall =
+      low?.walls.findIndex((w) => Math.abs(w.a[0] - 18) < 1e-6 && Math.abs(w.b[0] - 18) < 1e-6) ?? -1;
+    expect(sharedWall).toBeGreaterThanOrEqual(0);
+    for (const cell of low?.facade?.cells ?? [])
+      if (cell.wall === sharedWall) expect(cell.role).toBe('blank');
+  });
+
+  it('lets a part start above the ground', () => {
+    const mesh = generateBuilding(
+      base({
+        type: 'office',
+        footprint: { outer: rect(18, 10) },
+        parts: [part(0, 18, 4), part(4, 6, 6, 4)],
+        debug: true,
+      }),
+    );
+    checkMesh(mesh);
+    const top = mesh.debug?.parts?.[1];
+    expect(top?.spec.base).toBeGreaterThan(10);
+    expect(top?.facade?.cells.some((c) => c.role === 'door')).toBe(false);
+  });
+
+  it('cuts an arch where a flagged road passes through', () => {
+    const through = {
+      line: [
+        [15, -30],
+        [15, 40],
+      ] as Vec2[],
+      width: 4,
+      passage: true,
+    };
+    const mesh = generateBuilding(
+      base({
+        type: 'apartments',
+        footprint: { outer: rect(30, 10) },
+        roads: [through],
+        levels: 3,
+        debug: true,
+      }),
+    );
+    checkMesh(mesh);
+    const arches = mesh.debug?.facade?.cells.filter((c) => c.role === 'arch') ?? [];
+    expect(arches.length).toBeGreaterThanOrEqual(2); // entry and exit wall
+    expect(new Set(arches.map((c) => c.wall)).size).toBe(2);
+    expect(arches.every((c) => c.row === 0)).toBe(true);
+  });
+
+  it('does not cut small buildings unless the road is flagged', () => {
+    const crossing = {
+      line: [
+        [5, -30],
+        [5, 40],
+      ] as Vec2[],
+    };
+    const mesh = generateBuilding(base({ roads: [crossing], debug: true }));
+    expect(mesh.debug?.facade?.cells.some((c) => c.role === 'arch')).toBe(false);
+  });
+
+  it('honours entrance: false', () => {
+    const mesh = generateBuilding(base({ entrance: false, debug: true }));
+    expect(mesh.debug?.facade?.cells.some((c) => c.role === 'door')).toBe(false);
+    expect(mesh.debug?.facade?.streetWall).toBe(-1);
   });
 });

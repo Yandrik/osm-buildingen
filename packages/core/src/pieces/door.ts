@@ -1,5 +1,5 @@
 import { shade } from '../colour';
-import { box, recess, rect } from '../mesh/frame';
+import { at, box, recess, rect } from '../mesh/frame';
 import { param, timberFrame, wallAround } from './common';
 import type { Piece } from './types';
 
@@ -46,7 +46,25 @@ export const door: Piece = (mb, f, ctx) => {
   const trimSide = shade(trim, 0.85);
   if (param(ctx, 'step', 0) >= 1)
     box(mb, f, u0 - 0.15, 0, u1 + 0.15, 0.1, 0, 0.4, shade(ctx.palette.base, 0.95));
-  if (param(ctx, 'canopy', 0) >= 1 && H - oh > 0.45) {
+  if (param(ctx, 'porch', 0) >= 1 && H - oh > 0.45 && ctx.era < 0.85) {
+    // Porch: slab, two posts and a small roof. Modern houses (era > 0.85) keep a plain canopy.
+    const reach = 1.3;
+    const pw = Math.min(W - 0.1, ow + 1.3);
+    const a = (W - pw) / 2;
+    const top = oh + 0.25;
+    box(mb, f, a, 0, a + pw, 0.14, 0, reach, shade(ctx.palette.base, 0.95));
+    for (const u of [a + 0.06, a + pw - 0.2])
+      box(mb, f, u, 0.14, u + 0.14, top, reach - 0.2, reach - 0.06, trim, { back: true }, trimSide);
+    box(mb, f, a - 0.1, top, a + pw + 0.1, top + 0.14, 0, reach + 0.1, trim, {}, trimSide);
+    // Lean-to roof from the wall down to the front edge.
+    mb.quad(
+      at(f, a - 0.1, top + 0.14, reach + 0.1),
+      at(f, a + pw + 0.1, top + 0.14, reach + 0.1),
+      at(f, a + pw + 0.1, top + 0.55, 0),
+      at(f, a - 0.1, top + 0.55, 0),
+      ctx.palette.roof,
+    );
+  } else if ((param(ctx, 'canopy', 0) >= 1 || param(ctx, 'porch', 0) >= 1) && H - oh > 0.45) {
     const reach = ctx.era > 0.6 ? 0.9 : 0.6;
     box(mb, f, u0 - 0.25, oh + 0.12, u1 + 0.25, oh + 0.2, 0, reach, trim, { back: false }, trimSide);
   } else if (!ctx.timber && ctx.era < 0.5) {

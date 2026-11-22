@@ -1,21 +1,34 @@
 import { distanceToRing, ringBounds } from '../geom/polygon';
-import { type Vec2, pointSegment } from '../geom/vec2';
+import { type Vec2, cross, pointSegment, sub } from '../geom/vec2';
 import type { BuildingInput, ResolvedSpec, Span, WallContext, WallSegment } from '../types';
 
 /** Closer than this, a neighbour blocks doors and windows. */
 export const BLOCK_DISTANCE = 1.5;
 /** Closer than this, the wall is treated as a party wall. */
 export const SHARED_DISTANCE = 0.15;
+/** Below this footprint area a crossing road only makes a passage when it is flagged as one. */
+export const PASSAGE_MIN_AREA = 300;
 const STEP = 0.25;
 
-function mergeSpans(flags: boolean[], step: number, length: number, height: number): Span[] {
+function mergeSpans(
+  flags: boolean[],
+  step: number,
+  length: number,
+  height: number,
+  minHeight: number,
+): Span[] {
   const spans: Span[] = [];
   let start = -1;
   for (let i = 0; i <= flags.length; i++) {
     const on = i < flags.length && flags[i] === true;
     if (on && start < 0) start = i;
     if (!on && start >= 0) {
-      spans.push({ from: Math.max(0, (start - 0.5) * step), to: Math.min(length, (i - 0.5) * step), height });
+      spans.push({
+        from: Math.max(0, (start - 0.5) * step),
+        to: Math.min(length, (i - 0.5) * step),
+        height,
+        minHeight,
+      });
       start = -1;
     }
   }
@@ -33,7 +46,10 @@ export function buildContext(input: BuildingInput, spec: ResolvedSpec, walls: Wa
       ring: n.footprint.outer,
       bounds: ringBounds(n.footprint.outer),
       height: n.height ?? Number.POSITIVE_INFINITY,
-    }));
+      minHeight: n.minHeight ?? 0,
+    }))
+    // A neighbour entirely above or below this building's walls does not touch them.
+    .filter((n) => n.minHeight < spec.base + spec.wallHeight - 0.1 && n.height > spec.base + 0.1);
   const roads = (input.roads ?? []).filter((r) => r.line.length >= 2);
 
   return walls.map((wall) => {
@@ -71,8 +87,8 @@ export function buildContext(input: BuildingInput, spec: ResolvedSpec, walls: Wa
         }
       }
       if (any) {
-        blocked.push(...mergeSpans(isBlocked, step, wall.length, nb.height));
-        shared.push(...mergeSpans(isShared, step, wall.length, nb.height));
+        blocked.push(...mergeSpans(isBlocked, step, wall.length, nb.height, nb.minHeight));
+        shared.push(...mergeSpans(isShared, step, wall.length, nb.height, nb.minHeight));
       }
     }
 
@@ -101,7 +117,30 @@ export function buildContext(input: BuildingInput, spec: ResolvedSpec, walls: Wa
     streetScore *= openFraction;
     if (wall.ring > 0) streetScore *= 0.2;
 
-    return { blocked, shared, streetScore, openFraction, courtyard: wall.ring > 0 };
+    // Passages: a road crossing this wall. Small buildings only get one when the road is flagged.
+    const passages: Span[] = [];
+    for (const road of roads) {
+      if (road.kind === 'rail') continue;
+      if (!road.passage && spec.metrics.area < PASSAGE_MIN_AREA) continue;
+      for (let i = 0; i + 1 < road.line.length; i++) {
+        const p = road.line[i] as Vec2;
+        const r = sub(road.line[i + 1] as Vec2, p);
+        const den = cross(r, wall.dir);
+        if (Math.abs(den) < 1e-9) continue;
+        const t = cross(sub(wall.a, p), wall.dir) / den; // along the road segment, 0..1
+        const u = cross(sub(wall.a, p), r) / den; // along the wall, metres
+        if (t < 0 || t > 1 || u < 0 || u > wall.length) continue;
+        const width = Math.min(wall.length - 0.6, Math.max(2.4, (road.width ?? 3.5) + 1));
+        if (width < 1.8) continue;
+        const from = Math.max(0.3, Math.min(wall.length - 0.3 - width, u - width / 2));
+        const clear = road.kind === 'path' ? 2.8 : 3.8;
+        if (!passages.some((s) => s.from < from + width && s.to > from)) {
+          passages.push({ from, to: from + width, height: clear });
+        }
+      }
+    }
+
+    return { blocked, shared, passages, streetScore, openFraction, courtyard: wall.ring > 0 };
   });
 }
 
@@ -115,7 +154,7 @@ export function isBlocked(
 ): boolean {
   let covered = 0;
   for (const span of context.blocked) {
-    if (y >= span.height) continue;
+    if (y >= span.height || y < (span.minHeight ?? 0)) continue;
     const overlap = Math.min(to, span.to) - Math.max(from, span.from);
     if (overlap > 0) covered += overlap;
   }

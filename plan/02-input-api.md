@@ -24,7 +24,9 @@ interface BuildingInput {
   year?: number;                      // construction year, overrides the era roll
   hasAddress?: boolean;               // classification hint
   shop?: boolean;                     // force / forbid a ground-floor store
-  neighbours?: NeighbourInput[];      // { footprint, height?, sameGroup? }
+  shopProbability?: number;           // townhouses, when `shop` is not set
+  entrance?: boolean;                 // false = no entrance door
+  neighbours?: NeighbourInput[];      // { footprint, height?, minHeight?, sameGroup? }
   roads?: RoadInput[];                // { line, width?, kind?, passage? }
   groupKey?: string;                  // same key -> same palette and style
   style: { region: 'de' | 'us'; modernity: number; pack?: string };
@@ -34,6 +36,18 @@ interface BuildingInput {
   debug?: boolean;                    // include intermediate stage results
 }
 ```
+
+`height` is measured from the ground like OSM `height`; `minHeight` lifts the
+wall base.
+
+### Parts
+
+A building with `parts` is built from its parts only; the outline is not
+drawn. Parts share the building's type, era, palette, facade variant and level
+height, so window rows line up. A part's `levels` counts from the ground and
+`minLevel` levels are skipped below it (OSM semantics). Parts block each
+other's walls where they touch, up to the lower part's wall top. One part gets
+the entrance: the largest one standing on the ground.
 
 Precedence for dimensions: `height` > `levels` > inferred. If both are given,
 level height is derived from them. `roof.height` > `roof.levels` > style default.

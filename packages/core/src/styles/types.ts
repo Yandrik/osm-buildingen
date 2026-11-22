@@ -85,6 +85,16 @@ export interface PaletteSet {
   frame: Weighted<string>;
 }
 
+export interface RoofDetailStyle {
+  /** Dormers on pitched roofs. */
+  dormer?: Curve;
+  chimney?: Curve;
+  /** Small window in each gable wall. */
+  atticWindow?: Curve;
+  /** Units and a stair head on flat roofs. */
+  clutter?: Curve;
+}
+
 export interface TypeStyle {
   /** Metres per level. */
   levelHeight: Curve;
@@ -112,6 +122,10 @@ export interface TypeStyle {
   sockets: SocketTable;
   /** Probability of mirroring the street wall around its centre. */
   symmetry: Curve;
+  /** Probability that the building gets a garage door at one end of its street wall. */
+  attachedGarage?: Curve;
+  /** Probabilities (per building) of roof decoration. Left out = none. */
+  roofDetails?: RoofDetailStyle;
   /** Replaces single palette lists of the pack for this type. */
   palette?: Partial<PaletteSet>;
   /** Reuse the plot's wall colour (garages, sheds). */

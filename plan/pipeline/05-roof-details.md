@@ -1,5 +1,10 @@
 # Stage 5: roof details
 
+Status: chimneys, shed dormers, attic windows, rooftop units and stair heads
+are built (`pipeline/roofDetails.ts`). Skylights, solar panels, gabled
+dormers and the skyscraper crown are not yet. Probabilities per type and era
+live in the style pack (`TypeStyle.roofDetails`).
+
 Placed after the facade so dormers can line up with window columns.
 
 ## Pitched roofs

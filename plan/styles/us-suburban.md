@@ -1,5 +1,9 @@
 # US suburban pack
 
+Status: houses, apartments, townhouses, garages and sheds have their own
+definitions (`styles/us.ts`). Office, skyscraper, industrial, station and
+store reuse the German definitions with the US palette.
+
 ## Roof
 
 - Gabled and hipped dominate at all eras; cross-gables on L and T footprints

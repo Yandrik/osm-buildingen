@@ -1,30 +1,27 @@
 /**
- * Facts derived from `BuildingDebug` that the core does not report directly
- * (street wall, door positions). Shared by the plan editor and the inspector.
+ * Entrance positions and the facade grid, read from `BuildingDebug`.
+ * Shared by the plan editor and the inspector.
  */
 import type { BuildingDebug, FacadeCell, Vec2 } from '@osm-buildingen/core';
-
-/**
- * Ground-floor tiles that are entrances. The core picks a street wall internally but does
- * not expose it, so the studio infers it from where an entrance tile was placed.
- */
-const ENTRANCE_TILES = new Set(['door', 'shopdoor', 'lobby', 'garage_door']);
 
 export interface Entrance {
   wall: number;
   tile: string;
+  role: FacadeCell['role'];
   /** Centre of the entrance on the footprint, input coordinates. */
   position: Vec2;
 }
 
 export interface EntranceInfo {
-  /** Wall index with the first entrance, or -1 when there is none (massing, no facade). */
+  /** Wall the generator chose for the entrance, or -1 (massing, no facade, entrance: false). */
   streetWall: number;
   entrances: Entrance[];
 }
 
+const ENTRANCE_ROLES = new Set(['door', 'shopdoor', 'garage', 'dock']);
+
 export function isEntrance(cell: FacadeCell): boolean {
-  return cell.row === 0 && ENTRANCE_TILES.has(cell.tile);
+  return cell.row === 0 && ENTRANCE_ROLES.has(cell.role);
 }
 
 export function entranceInfo(debug: BuildingDebug | undefined): EntranceInfo {
@@ -38,12 +35,11 @@ export function entranceInfo(debug: BuildingDebug | undefined): EntranceInfo {
     entrances.push({
       wall: cell.wall,
       tile: cell.tile,
+      role: cell.role,
       position: [wall.a[0] + wall.dir[0] * t, wall.a[1] + wall.dir[1] * t],
     });
   }
-  // Prefer a real door over a garage door: garages get both on their street wall anyway.
-  const main = entrances.find((e) => e.tile !== 'garage_door') ?? entrances[0];
-  return { streetWall: main ? main.wall : -1, entrances };
+  return { streetWall: debug.facade.streetWall, entrances };
 }
 
 /** Facade cells grouped by wall, then by row (row 0 = ground floor). */

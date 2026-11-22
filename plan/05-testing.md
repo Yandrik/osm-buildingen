@@ -3,7 +3,7 @@
 | Kind | What | Where |
 |---|---|---|
 | Unit | geometry helpers, rng, parsing, each roof shape on fixed footprints | next to the code, `*.test.ts` |
-| Golden | fixed inputs -> hash of the mesh buffers; fails on any output change without a `GENERATOR_VERSION` bump | `core/test/golden` |
+| Golden | 60 fixed inputs -> hash of the mesh (positions rounded to 1 mm); fails on any output change without a `GENERATOR_VERSION` bump. `pnpm golden:update` rewrites `golden.json` after a deliberate bump | `core/test/golden` |
 | Property | thousands of random footprints and inputs: no throw, finite coordinates, valid indices, normals unit length, mesh inside expected bounds | `core/test/property` |
 | Roof validity | roof faces cover the footprint without overlap; walls meet the roof | property tests |
 | Determinism | same input twice -> identical buffers; different seed -> different | golden suite |

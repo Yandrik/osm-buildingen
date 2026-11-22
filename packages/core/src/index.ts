@@ -1,9 +1,10 @@
 import { dePack } from './styles/de';
 import { registerStylePack } from './styles/registry';
+import { usPack } from './styles/us';
 
-// Built-in packs. 'us' is served by the German pack until its own pack lands (milestone 5).
+// Built-in packs.
 registerStylePack(dePack);
-registerStylePack({ ...dePack, id: 'us' });
+registerStylePack(usPack);
 
 export { generateBuilding, resolveBuilding } from './generate';
 export { GENERATOR_VERSION } from './version';

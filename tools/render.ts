@@ -23,6 +23,8 @@ export interface RenderOptions {
   elevation?: number;
   background?: [number, number, number];
   ground?: [number, number, number];
+  /** One ground slab under everything instead of one per item (for scenes that share an origin). */
+  sharedGround?: boolean;
 }
 
 function crc32(buf: Uint8Array): number {
@@ -149,7 +151,29 @@ export function render(items: Placed[], options: RenderOptions = {}): Buffer {
 
   // Ground slab under each building.
   const g = options.ground ?? [150, 190, 120];
-  for (const { mesh, x, z } of items) {
+  const slabs: Placed[] = options.sharedGround
+    ? [
+        {
+          x: 0,
+          z: 0,
+          mesh: {
+            bounds: {
+              min: [
+                Math.min(...items.map((i) => i.mesh.bounds.min[0] + i.x)),
+                0,
+                Math.min(...items.map((i) => i.mesh.bounds.min[2] + i.z)),
+              ],
+              max: [
+                Math.max(...items.map((i) => i.mesh.bounds.max[0] + i.x)),
+                0,
+                Math.max(...items.map((i) => i.mesh.bounds.max[2] + i.z)),
+              ],
+            },
+          } as BuildingMesh,
+        },
+      ]
+    : items;
+  for (const { mesh, x, z } of slabs) {
     const m = 3;
     const a = screen(mesh.bounds.min[0] + x - m, 0, mesh.bounds.min[2] + z - m);
     const b = screen(mesh.bounds.max[0] + x + m, 0, mesh.bounds.min[2] + z - m);

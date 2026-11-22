@@ -703,7 +703,7 @@ export function createPlanEditor(
     });
     for (const e of entrances) {
       const [x, y] = toScreen(e.position);
-      ctx.fillStyle = e.tile === 'garage_door' ? theme.neighbour : theme.door;
+      ctx.fillStyle = e.role === 'garage' ? theme.neighbour : theme.door;
       ctx.beginPath();
       ctx.arc(x, y, 5, 0, Math.PI * 2);
       ctx.fill();
