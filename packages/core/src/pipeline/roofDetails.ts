@@ -1,5 +1,5 @@
 import { type Colour, shade } from '../colour';
-import { centroid, pointInRing } from '../geom/polygon';
+import { centroid, distanceToRing, pointInRing } from '../geom/polygon';
 import { type Vec2, dot, normalize, pointSegment, sub } from '../geom/vec2';
 import type { MeshBuilder } from '../mesh/builder';
 import type { Frame } from '../mesh/frame';
@@ -8,7 +8,16 @@ import { PIECES, type PieceContext } from '../pieces';
 import { Rng, seedFrom } from '../rng';
 import { getStylePack } from '../styles/registry';
 import { evalCurve } from '../styles/types';
-import type { ResolvedSpec, RoofFace, RoofGeometry, Vec3, Vec3In, WallContext, WallSegment } from '../types';
+import type {
+  Polygon,
+  ResolvedSpec,
+  RoofFace,
+  RoofGeometry,
+  Vec3,
+  Vec3In,
+  WallContext,
+  WallSegment,
+} from '../types';
 import { GENERATOR_VERSION } from '../version';
 
 export interface RoofDetailStage {
@@ -19,6 +28,10 @@ export interface RoofDetailStage {
   roof: RoofGeometry;
   baseElevation: number;
   seed: string | number;
+  /** Footprints of parts standing on this roof. */
+  onRoof?: readonly Polygon[];
+  /** Wall with the entrance, or -1. */
+  streetWall?: number;
 }
 
 interface Plane {
@@ -282,11 +295,296 @@ export function addRoofDetails(stage: RoofDetailStage): number {
     });
   }
 
+  /** Roof surface height at a plan point (on the face above it), or null outside the roof. */
+  const roofZ = (p: Vec2): number | null => {
+    for (const face of roof.faces) {
+      if (
+        !pointInRing(
+          p,
+          face.points.map((q): Vec2 => [q[0], q[1]]),
+        )
+      )
+        continue;
+      const plane = planeOf(face);
+      if (plane) return plane.z0 + plane.gx * p[0] + plane.gy * p[1];
+    }
+    return null;
+  };
+
+  // --- Clock turret on the ridge (old stations) ---
+  if (
+    pitched &&
+    style.turret !== undefined &&
+    spec.roof.height > 1.5 &&
+    spec.metrics.area > 100 &&
+    rng.fork('turret').chance(evalCurve(style.turret, era))
+  ) {
+    const { box: obb } = spec.metrics;
+    const half = Math.min(1.3, Math.max(0.8, obb.halfWidth * 0.22));
+    const corners = boxAt(obb.center, obb.axis, half, half);
+    const lows = corners.map(roofZ);
+    if (lows.every((z) => z !== null)) {
+      const z0 = Math.min(...(lows as number[])) - 0.1;
+      const ridge = eave + spec.roof.height;
+      const body = palette.trim;
+      const zc = ridge + 1.0;
+      const top = zc + 0.85;
+      prism(corners, z0, top, shade(body, 0.95), body);
+      // A clock on every side: a white disc with two dark hands.
+      for (let k = 0; k < 4; k++) {
+        const a = corners[k] as Vec2;
+        const b = corners[(k + 1) % 4] as Vec2;
+        const t = normalize(sub(b, a));
+        const n: Vec2 = [t[1], -t[0]];
+        const c: Vec2 = [(a[0] + b[0]) / 2 + n[0] * 0.03, (a[1] + b[1]) / 2 + n[1] * 0.03];
+        const r = half * 0.62;
+        const disc: Vec3[] = [];
+        for (let j = 0; j < 8; j++) {
+          const th = ((j + 0.5) / 8) * 2 * Math.PI;
+          const u = Math.cos(th) * r;
+          disc.push(world([c[0] + t[0] * u, c[1] + t[1] * u], zc + Math.sin(th) * r));
+        }
+        mb.polygon(disc, 0xf4f1e8);
+        const h: Vec2 = [c[0] + n[0] * 0.02, c[1] + n[1] * 0.02];
+        const p = (u: number): Vec2 => [h[0] + t[0] * u, h[1] + t[1] * u];
+        mb.quad(
+          world(p(-0.03), zc),
+          world(p(0.03), zc),
+          world(p(0.03), zc + r * 0.75),
+          world(p(-0.03), zc + r * 0.75),
+          0x2a2a2a,
+        );
+        mb.quad(
+          world(p(0), zc - 0.03),
+          world(p(r * 0.55), zc - 0.03),
+          world(p(r * 0.55), zc + 0.03),
+          world(p(0), zc + 0.03),
+          0x2a2a2a,
+        );
+      }
+      // Pyramid cap with a small overhang.
+      const capCorners = boxAt(obb.center, obb.axis, half + 0.15, half + 0.15);
+      const apex = world(obb.center, top + half * 1.6);
+      const capColour = era < 0.3 ? 0x5f8a78 : palette.roof;
+      for (let k = 0; k < 4; k++) {
+        mb.tri(
+          world(capCorners[k] as Vec2, top),
+          world(capCorners[(k + 1) % 4] as Vec2, top),
+          apex,
+          capColour,
+        );
+      }
+      mb.polygon(
+        [...capCorners].reverse().map((q) => world(q, top)),
+        shade(capColour, 0.6),
+      );
+      count++;
+    }
+  }
+
+  const { box: obb } = spec.metrics;
+  /** Plan point at (u, v) in the oriented box frame. */
+  const inBox = (u: number, v: number): Vec2 => [
+    obb.center[0] + obb.axis[0] * u + obb.side[0] * v,
+    obb.center[1] + obb.axis[1] * u + obb.side[1] * v,
+  ];
+  /** Plan rings of details placed so far that later clutter must keep clear of. */
+  const taken: Vec2[][] = [];
+  const free = (p: Vec2): boolean =>
+    pointInRing(p, spec.footprint.outer) &&
+    !spec.footprint.holes.some((h) => pointInRing(p, h)) &&
+    !(stage.onRoof ?? []).some((poly) => pointInRing(p, poly.outer));
+
+  // --- Halls: rows of glazed strips on flat roofs ---
+  if (
+    spec.roof.shape === 'flat' &&
+    spec.metrics.rectangularity > 0.8 &&
+    obb.halfWidth > 5 &&
+    rng.fork('skylights').chance(evalCurve(style.skylights ?? 0, era))
+  ) {
+    const rows = Math.max(1, Math.floor((2 * obb.halfWidth - 4) / 7));
+    const half = obb.halfLength - 2.5;
+    const strip = 0.8;
+    for (let k = 0; k < rows && half > 2; k++) {
+      const v = -obb.halfWidth + (2 * obb.halfWidth * (k + 0.5)) / rows;
+      const c = boxAt(inBox(0, v), obb.axis, half, strip);
+      if (!c.every(free)) continue;
+      prism(c, eave, eave + 0.35, shade(palette.wall, 0.85), shade(palette.wall, 0.85));
+      taken.push(c);
+      // Glazed ridge on top: two slopes.
+      const lo0 = inBox(-half, v - strip);
+      const lo1 = inBox(half, v - strip);
+      const hi0 = inBox(-half, v);
+      const hi1 = inBox(half, v);
+      const lo2 = inBox(half, v + strip);
+      const lo3 = inBox(-half, v + strip);
+      const z = eave + 0.35;
+      mb.quad(world(lo0, z), world(lo1, z), world(hi1, z + 0.45), world(hi0, z + 0.45), palette.glass);
+      mb.quad(world(lo2, z), world(lo3, z), world(hi0, z + 0.45), world(hi1, z + 0.45), palette.glass);
+      mb.tri(world(lo1, z), world(lo2, z), world(hi1, z + 0.45), shade(palette.wall, 0.85));
+      mb.tri(world(lo3, z), world(lo0, z), world(hi0, z + 0.45), shade(palette.wall, 0.85));
+      count++;
+    }
+  }
+
+  // --- Halls: a raised vent along the ridge of a gabled roof ---
+  if (
+    spec.roof.shape === 'gabled' &&
+    spec.metrics.rectangularity > 0.85 &&
+    obb.halfLength > 8 &&
+    rng.fork('ridgeVent').chance(evalCurve(style.ridgeVent ?? 0, era))
+  ) {
+    const axis = spec.roof.ridgeAxis;
+    const along = Math.abs(dot(axis, obb.axis)) > 0.7;
+    const halfL = (along ? obb.halfLength : obb.halfWidth) * 0.7;
+    const ridge = eave + spec.roof.height;
+    const w = 0.7;
+    const c = boxAt(obb.center, axis, halfL, w);
+    const zs = c.map(roofZ);
+    if (zs.every((z) => z !== null)) {
+      const z0 = Math.min(...(zs as number[])) - 0.05;
+      prism(c, z0, ridge + 0.55, 0x3d4145, 0x3d4145);
+      // Its own small gabled cap.
+      const s: Vec2 = [-axis[1], axis[0]];
+      const o = 0.25;
+      const e0: Vec2 = [obb.center[0] - axis[0] * (halfL + o), obb.center[1] - axis[1] * (halfL + o)];
+      const e1: Vec2 = [obb.center[0] + axis[0] * (halfL + o), obb.center[1] + axis[1] * (halfL + o)];
+      const off = (p: Vec2, d: number): Vec2 => [p[0] + s[0] * d, p[1] + s[1] * d];
+      const zt = ridge + 0.55;
+      mb.quad(
+        world(off(e0, -(w + o)), zt - 0.1),
+        world(off(e1, -(w + o)), zt - 0.1),
+        world(e1, zt + 0.35),
+        world(e0, zt + 0.35),
+        palette.roof,
+      );
+      mb.quad(
+        world(off(e1, w + o), zt - 0.1),
+        world(off(e0, w + o), zt - 0.1),
+        world(e0, zt + 0.35),
+        world(e1, zt + 0.35),
+        palette.roof,
+      );
+      mb.tri(
+        world(off(e1, -(w + o)), zt - 0.1),
+        world(off(e1, w + o), zt - 0.1),
+        world(e1, zt + 0.35),
+        shade(palette.roof, 0.8),
+      );
+      mb.tri(
+        world(off(e0, w + o), zt - 0.1),
+        world(off(e0, -(w + o)), zt - 0.1),
+        world(e0, zt + 0.35),
+        shade(palette.roof, 0.8),
+      );
+      count++;
+    }
+  }
+
+  // --- Old factories: one tall chimney stack near a corner of the roof ---
+  if (obb.halfWidth > 4 && rng.fork('stack').chance(evalCurve(style.chimneyStack ?? 0, era))) {
+    const srng = rng.fork('stackPlace');
+    const corner = srng.int(4);
+    const su = (corner & 1 ? 1 : -1) * Math.max(0, obb.halfLength - 3);
+    const sv = (corner & 2 ? 1 : -1) * Math.max(0, obb.halfWidth - 3);
+    const at = inBox(su, sv);
+    const zRoof = spec.roof.shape === 'flat' ? eave : roofZ(at);
+    if (zRoof !== null && free(at)) {
+      const r0 = 1.0 + srng.next() * 0.3;
+      const r1 = r0 * 0.75;
+      const height = Math.max(14, eave * 1.6) + srng.next() * 8;
+      const z0 = zRoof - 0.3;
+      const z1 = eave + height;
+      const round = srng.chance(0.6);
+      const sides = round ? 8 : 4;
+      const ring = (r: number): Vec2[] =>
+        Array.from({ length: sides }, (_, k): Vec2 => {
+          const a = ((k + 0.5) / sides) * 2 * Math.PI;
+          const u = Math.round(Math.cos(a) * 1e6) / 1e6;
+          const v = Math.round(Math.sin(a) * 1e6) / 1e6;
+          return [
+            at[0] + (obb.axis[0] * u + obb.side[0] * v) * r,
+            at[1] + (obb.axis[1] * u + obb.side[1] * v) * r,
+          ];
+        });
+      const brick = 0x9a5a48;
+      const bottom = ring(r0);
+      const top = ring(r1);
+      for (let k = 0; k < sides; k++) {
+        const j = (k + 1) % sides;
+        mb.quad(
+          world(bottom[k] as Vec2, z0),
+          world(bottom[j] as Vec2, z0),
+          world(top[j] as Vec2, z1 - 1.2),
+          world(top[k] as Vec2, z1 - 1.2),
+          brick,
+        );
+      }
+      // Banded crown: a wider dark ring at the top.
+      prism(ring(r1 * 1.18), z1 - 1.2, z1, shade(brick, 0.6), 0x222222);
+      taken.push(ring(r0));
+      count++;
+    }
+  }
+
+  // --- Stores: a raised front over the street wall with a sign ---
+  const street = walls[stage.streetWall ?? -1];
+  if (
+    spec.roof.shape === 'flat' &&
+    street &&
+    street.length >= 5 &&
+    spec.base < 0.5 &&
+    rng.fork('falseFront').chance(evalCurve(style.falseFront ?? 0, era))
+  ) {
+    const L = street.length;
+    const f: Frame = {
+      origin: world(street.a, eave),
+      right: [street.dir[0], 0, -street.dir[1]],
+      up: [0, 1, 0],
+      normal: [street.normal[0], 0, -street.normal[1]],
+      width: L,
+      height: 3,
+    };
+    const rise = spec.roof.parapet + Math.min(2, Math.max(0.9, L * 0.1));
+    const cap = palette.trim;
+    const capSide = shade(cap, 0.85);
+    const wallSide = shade(palette.wall, 0.85);
+    // Old stores step up in the middle.
+    const stepped = era < 0.5;
+    const mid0 = L * 0.3;
+    const mid1 = L * 0.7;
+    const crest = stepped ? rise + 0.6 : rise;
+    // Back faces too: the front is seen from the roof side as well.
+    box(mb, f, 0, 0, L, rise, -0.25, 0.03, palette.wall, { bottom: false, back: true }, wallSide);
+    box(mb, f, -0.05, rise, L + 0.05, rise + 0.12, -0.3, 0.08, cap, { back: true }, capSide);
+    if (stepped) {
+      box(mb, f, mid0, rise + 0.12, mid1, crest, -0.25, 0.03, palette.wall, { back: true }, wallSide);
+      box(mb, f, mid0 - 0.05, crest, mid1 + 0.05, crest + 0.12, -0.3, 0.08, cap, { back: true }, capSide);
+    }
+    // The sign: a coloured panel, no text.
+    const sw = Math.min(L * 0.6, 9);
+    const s0 = (L - sw) / 2;
+    const accent = palette.accent;
+    box(
+      mb,
+      f,
+      s0,
+      rise * 0.25,
+      s0 + sw,
+      Math.min(crest - 0.15, rise * 0.25 + 0.9),
+      0.03,
+      0.12,
+      accent,
+      {},
+      shade(accent, 0.8),
+    );
+    count++;
+  }
+
   // --- Flat roofs: units and a stair head ---
   if (spec.roof.shape === 'flat' && rng.fork('clutter').chance(evalCurve(style.clutter ?? 0, era))) {
     const outer = spec.footprint.outer;
     const rings = [outer, ...spec.footprint.holes];
-    const { box: obb } = spec.metrics;
     const edgeDistance = (p: Vec2): number => {
       let dmin = Number.POSITIVE_INFINITY;
       for (const ring of rings) {
@@ -297,8 +595,18 @@ export function addRoofDetails(stage: RoofDetailStage): number {
       }
       return dmin;
     };
+    const covered = stage.onRoof ?? [];
     const inside = (p: Vec2): boolean =>
       pointInRing(p, outer) && !spec.footprint.holes.some((h) => pointInRing(p, h));
+    /** Distance to the nearest part standing on the roof; negative inside one. */
+    const clearance = (p: Vec2): number => {
+      let best = Number.POSITIVE_INFINITY;
+      for (const ring of [...covered.map((poly) => poly.outer), ...taken]) {
+        if (pointInRing(p, ring)) return -1;
+        best = Math.min(best, distanceToRing(p, ring));
+      }
+      return best;
+    };
     const placed: { p: Vec2; r: number }[] = [];
     const tryPlace = (halfL: number, halfW: number, height: number, side: Colour, lid: Colour): void => {
       const r = Math.hypot(halfL, halfW);
@@ -309,7 +617,7 @@ export function addRoofDetails(stage: RoofDetailStage): number {
           obb.center[0] + obb.axis[0] * u + obb.side[0] * v,
           obb.center[1] + obb.axis[1] * u + obb.side[1] * v,
         ];
-        if (!inside(p) || edgeDistance(p) < r + 0.8) continue;
+        if (!inside(p) || edgeDistance(p) < r + 0.8 || clearance(p) < r + 0.6) continue;
         if (placed.some((q) => Math.hypot(q.p[0] - p[0], q.p[1] - p[1]) < q.r + r + 0.6)) continue;
         placed.push({ p, r });
         prism(boxAt(p, obb.axis, halfL, halfW), eave, eave + height, side, lid);

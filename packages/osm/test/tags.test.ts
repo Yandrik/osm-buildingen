@@ -88,6 +88,7 @@ describe('parseRoofShape', () => {
     expect(parseRoofShape('Pyramidal')).toBe('pyramidal');
     expect(parseRoofShape('mansard')).toBe('mansard');
     expect(parseRoofShape('dome')).toBe('dome');
+    expect(parseRoofShape('sawtooth')).toBe('sawtooth');
     expect(parseRoofShape('many')).toBeUndefined();
     expect(parseRoofShape('many')).toBeUndefined();
   });
@@ -99,7 +100,9 @@ describe('classification', () => {
   it('uses building=* first', () => {
     expect(classify(tags({ building: 'detached' }), ctx).type).toBe('house');
     expect(classify(tags({ building: 'terrace' }), ctx).type).toBe('townhouse');
-    expect(classify(tags({ building: 'carport' }), ctx).type).toBe('garage');
+    expect(classify(tags({ building: 'carport' }), ctx).type).toBe('canopy');
+    expect(classify(tags({ building: 'roof', amenity: 'fuel' }), ctx).type).toBe('canopy');
+    expect(classify(tags({ building: 'garage' }), ctx).type).toBe('garage');
     expect(classify(tags({ building: 'warehouse' }), ctx).type).toBe('industrial');
     expect(classify(tags({ building: 'retail' }), ctx).type).toBe('store');
     expect(classify(tags({ building: 'train_station' }), ctx).type).toBe('station');
@@ -115,6 +118,13 @@ describe('classification', () => {
     expect(classify(tags({ building: 'yes', office: 'company' }), ctx).type).toBe('office');
     expect(classify(tags({ building: 'yes', railway: 'station' }), ctx).type).toBe('station');
     expect(classify(tags({ building: 'yes', man_made: 'works' }), ctx).type).toBe('industrial');
+    expect(classify(tags({ building: 'yes', amenity: 'shelter' }), ctx).type).toBe('canopy');
+    expect(
+      classify(tags({ building: 'yes', amenity: 'shelter', shelter_type: 'public_transport' }), ctx).type,
+    ).toBe('canopy');
+    expect(classify(tags({ building: 'yes', amenity: 'shelter', shelter_type: 'basic_hut' }), ctx).type).toBe(
+      'shed',
+    );
     expect(classify(tags({ building: 'yes' }), ctx).type).toBeUndefined();
   });
 

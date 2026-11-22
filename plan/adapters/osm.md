@@ -164,6 +164,8 @@ does not depend on element order.
 
 - Core builds `parts`; special buildings are still emitted with `detail: 'massing'`.
 - `roof:angle`, `building:material`, `roof:material` are not read.
+- `building=roof`, `carport` and similar open-sided roofs map to the `canopy`
+  type; `roof:shape=sawtooth` is passed through.
 - `roof:shape` dome, onion, cone and round are passed through; saltbox
   variants, sawtooth and butterfly map to their closest relative.
 - Vector tiles (OpenMapTiles schema) have their own adapter; see

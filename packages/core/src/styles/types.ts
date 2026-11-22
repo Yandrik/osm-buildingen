@@ -93,6 +93,68 @@ export interface RoofDetailStyle {
   atticWindow?: Curve;
   /** Units and a stair head on flat roofs. */
   clutter?: Curve;
+  /** Rows of glazed strips on flat roofs (halls). */
+  skylights?: Curve;
+  /** Raised vent along the ridge of a gabled roof (halls). */
+  ridgeVent?: Curve;
+  /** One tall factory chimney on the roof, near a corner. */
+  chimneyStack?: Curve;
+  /** Small clock turret on the ridge (old stations). */
+  turret?: Curve;
+  /** Raised front above the street wall of a flat roof, carrying a sign (stores). */
+  falseFront?: Curve;
+}
+
+/**
+ * Tower crowns, see plan/styles/non-residential.md:
+ *   setback    two or three tiers, each inset further, the last with a hipped or pyramidal cap
+ *   tower      one or two setbacks and a slender tower with a pyramidal roof
+ *   penthouse  flat top with a recessed plant storey
+ *   glass      a taller inset glass top storey
+ *   chamfer    the top storeys cut off by a single slope
+ *   spire      plant storey and a thin spire
+ */
+export type CrownKind = 'setback' | 'tower' | 'penthouse' | 'glass' | 'chamfer' | 'spire';
+
+/** Podium, shaft and crown of tall buildings (`pipeline/autoParts.ts`). */
+export interface TowerStyle {
+  /** Levels of the podium, the base that covers the whole footprint. */
+  podiumLevels: Weighted<number>;
+  /** Facade variants of the podium; '' keeps the building's own variant. */
+  podiumVariants: Weighted<string>;
+  crowns: Weighted<CrownKind>;
+  /** Facade variant of plant storeys and spire bases. */
+  plantVariant: string;
+  /** Facade variant of glass top storeys. */
+  glassVariant: string;
+}
+
+/** Roofs on posts: the canopy type and station platform roofs. */
+export interface CanopyStyle {
+  /** Post width in metres. */
+  post: Curve;
+  /** Largest distance between posts along an edge. */
+  spacing: Curve;
+  /** Thickness of the roof slab edge (fascia). */
+  fascia: Curve;
+}
+
+/** Platform roof along the rail side of a station. */
+export interface PlatformStyle {
+  /** Depth from the wall, metres. */
+  depth: Curve;
+  /** Height of the roof edge above the ground. */
+  height: Curve;
+  /** Probability of a lean-to roof instead of a flat slab. */
+  leanTo: Curve;
+}
+
+/** Horizontal trim on the walls. Probabilities per building. */
+export interface TrimStyle {
+  /** Slim band at every level line. */
+  band?: Curve;
+  /** Cornice under the eave or parapet. */
+  cornice?: Curve;
 }
 
 export interface TypeStyle {
@@ -130,6 +192,16 @@ export interface TypeStyle {
   palette?: Partial<PaletteSet>;
   /** Reuse the plot's wall colour (garages, sheds). */
   inheritsGroupWall?: boolean;
+  /** Eave overhang of flat roofs in metres (a slab reaching past the walls). Default 0. */
+  flatOverhang?: Curve;
+  /** Podium, shaft and crown for tall buildings. Left out = plain prism. */
+  tower?: TowerStyle;
+  /** Posts and slab of roofs on posts. */
+  canopy?: CanopyStyle;
+  /** Platform roof when a rail line runs along the building. */
+  platform?: PlatformStyle;
+  /** Level bands and cornice. Left out = none. */
+  trim?: TrimStyle;
 }
 
 export interface StylePack {

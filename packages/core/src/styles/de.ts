@@ -1,5 +1,6 @@
 import type { BuildingType } from '../types';
 import type {
+  CanopyStyle,
   Curve,
   FacadeTile,
   PaletteSet,
@@ -8,6 +9,7 @@ import type {
   SocketTable,
   StylePack,
   TileRole,
+  TrimStyle,
   TypeStyle,
 } from './types';
 
@@ -120,6 +122,12 @@ const palette: PaletteSet = {
   ],
 };
 
+/** Level bands and cornice on buildings from before about 1940; see TrimStyle. */
+const OLD_TRIM: TrimStyle = {
+  band: [[0, 0.5], [0.2, 0.85], [0.44, 0.85], [0.45, 0]],
+  cornice: [[0, 0.6], [0.2, 0.95], [0.44, 0.95], [0.45, 0]],
+};
+
 // --- Residential -----------------------------------------------------------
 
 /**
@@ -216,6 +224,7 @@ const house: TypeStyle = {
   ],
   sockets: STACKING,
   symmetry: [[0, 0.6], [0.5, 0.4], [1, 0.25]],
+  trim: OLD_TRIM,
 };
 
 const apartments: TypeStyle = {
@@ -378,6 +387,7 @@ const office: TypeStyle = {
     v: { solid: ['solid', 'win'], win: ['win'], door: ['solid', 'win'] },
   },
   symmetry: [[0, 0.8], [1, 0.4]],
+  trim: OLD_TRIM,
   palette: {
     wall: [
       ['#d8cfc0', [[0, 3], [1, 1]]],
@@ -391,20 +401,99 @@ const office: TypeStyle = {
   },
 };
 
+/**
+ * Towers: podium, shaft and crown (see TowerStyle and pipeline/autoParts.ts).
+ * `piers`: vertical ribs over the whole shaft, old and mid eras.
+ * `podium_stone` / `podium_glass`: only on the podium, never rolled for the building.
+ * `plant`: louvred plant storeys and spire bases.
+ */
 const skyscraper: TypeStyle = {
   ...office,
   levelHeight: 3.7,
   groundExtra: 1.8,
   levels: [[18, 2], [24, 3], [30, 2], [40, 1]],
   roofShapes: [['flat', 1]],
-  parapet: 1.2,
+  parapet: [[0, 0.9], [1, 1.2]],
   bayWidth: [[0, 2.8], [1, 3.2]],
   variants: [
-    ['punched', [[0, 3], [0.5, 0.5], [1, 0]]],
-    ['band', [[0.3, 0], [0.5, 3], [1, 0.5]]],
+    ['punched', [[0, 2], [0.4, 1], [0.6, 0]]],
+    ['piers', [[0, 3], [0.5, 3], [0.7, 0.5], [0.85, 0]]],
+    ['band', [[0.35, 0], [0.5, 2], [0.8, 1], [1, 0.3]]],
     ['curtain', [[0.5, 0], [0.7, 3], [1, 6]]],
   ],
+  tiles: [
+    // Blank only where something blocks the wall: towers keep a strict grid.
+    tile('blank', 'wall', 'blank', { weight: 0 }),
+    tile('win_punched', 'window', 'window', {
+      variant: 'punched',
+      weight: 6,
+      params: { w: 0.4, h: 0.55, sill: 0.25, frame: 1, mullionH: 1, sillBox: 1 },
+    }),
+    tile('win_piers', 'window', 'window', {
+      variant: 'piers',
+      weight: 6,
+      params: { w: 0.56, h: 0.6, sill: 0.22, mullionH: 1, fins: 0.32, finW: 0.42 },
+    }),
+    tile('win_band', 'window', 'window', {
+      variant: 'band',
+      weight: 8,
+      h: 'band',
+      params: { w: 1, h: 0.45, sill: 0.3, frame: 0, mullionV: 2 },
+    }),
+    tile('curtain', 'window', 'window', {
+      variant: 'curtain',
+      weight: 10,
+      h: 'band',
+      params: { w: 1, h: 0.9, sill: 0.05, frame: 0, mullionV: 1, mullionH: 1 },
+    }),
+    tile('podium_stone', 'window', 'window', {
+      variant: 'podium_stone',
+      weight: 6,
+      params: { w: 0.62, h: 0.68, sill: 0.14, frame: 1, mullionV: 1, mullionH: 1, fins: 0.18, finW: 0.5 },
+    }),
+    tile('podium_glass', 'window', 'window', {
+      variant: 'podium_glass',
+      weight: 6,
+      h: 'band',
+      params: { w: 1, h: 0.92, sill: 0.04, frame: 0, mullionV: 2, mullionH: 1 },
+    }),
+    tile('louvre', 'window', 'window', {
+      variant: 'plant',
+      weight: 3,
+      params: { w: 0.7, h: 0.6, sill: 0.2, frame: 0, louvre: 1 },
+    }),
+    tile('plant_blank', 'wall', 'blank', { variant: 'plant', weight: 1.5 }),
+    tile('door', 'door', 'door', {
+      rows: GROUND,
+      params: { w: 2.2, h: 2.6, canopy: 2, glass: 0.85, double: 1 },
+    }),
+    tile('lobby', 'shopfront', 'shop', { rows: GROUND, weight: 3, params: { base: 0.25 } }),
+  ],
   symmetry: 0.9,
+  // Piers and setbacks carry the old towers; bands would cut across the piers.
+  trim: undefined,
+  // Caps and spires: copper, slate and metal rather than tiles.
+  palette: {
+    ...office.palette,
+    roof: [['#5f8a78', [[0, 3], [0.5, 1], [1, 0]]], ['#3f4347', 3], ['#6a6f76', [[0, 1], [1, 3]]]],
+  },
+  tower: {
+    podiumLevels: [[1, 1], [2, 3], [3, 2], [4, 1]],
+    podiumVariants: [
+      ['podium_stone', [[0, 4], [0.45, 2], [0.6, 0]]],
+      ['podium_glass', [[0.3, 0], [0.6, 3], [1, 5]]],
+    ],
+    crowns: [
+      ['setback', [[0, 4], [0.35, 3], [0.45, 0]]],
+      ['tower', [[0, 2], [0.35, 1.5], [0.45, 0]]],
+      ['penthouse', [[0.3, 0], [0.45, 4], [0.7, 3], [0.85, 0]]],
+      ['glass', [[0.6, 0], [0.8, 2], [1, 3]]],
+      ['chamfer', [[0.6, 0], [0.8, 1.5], [1, 2]]],
+      ['spire', [[0.6, 0], [0.8, 1], [1, 2]]],
+    ],
+    plantVariant: 'plant',
+    glassVariant: 'curtain',
+  },
 };
 
 const industrial: TypeStyle = {
@@ -415,6 +504,7 @@ const industrial: TypeStyle = {
     ['flat', [[0, 2], [1, 6]]],
     ['gabled', [[0, 5], [1, 2.5]]],
     ['skillion', 0.8],
+    ['sawtooth', [[0, 3], [0.4, 2.5], [0.7, 0.3], [1, 0]]],
   ],
   roofPitch: [[0, 22], [1, 10]],
   roofPitchSpread: 3,
@@ -429,7 +519,7 @@ const industrial: TypeStyle = {
       weight: 2,
       params: { w: 0.8, h: 0.14, sill: 0.72, frame: 0, mullionV: 3 },
     }),
-    tile('dock', 'garageDoor', 'dock', { rows: GROUND, params: { w: 0.7, h: 4.2, lines: 7 } }),
+    tile('dock', 'garageDoor', 'dock', { rows: GROUND, params: { w: 0.62, h: 3, lines: 6, dock: 1 } }),
     tile('door', 'door', 'door', { rows: GROUND, params: { w: 1.0, h: 2.1, glass: 0, canopy: 1 } }),
   ],
   sockets: LOOSE,
@@ -481,11 +571,11 @@ const station: TypeStyle = {
     tile('win_tall', 'window', 'window', {
       variant: 'framed',
       weight: 4,
-      params: { w: 0.42, h: 0.62, sill: 0.2, frame: 1, mullionV: 1, mullionH: 2, sillBox: 1 },
+      params: { w: 0.42, h: 0.52, sill: 0.2, frame: 1, mullionV: 1, mullionH: 1, sillBox: 1, arch: 0.32 },
     }),
     tile('win_glass', 'window', 'window', {
       variant: 'modern',
-      weight: 5,
+      weight: 9,
       h: 'band',
       params: { w: 1, h: 0.85, sill: 0.05, frame: 0, mullionV: 1 },
     }),
@@ -498,7 +588,14 @@ const station: TypeStyle = {
     h: { w: ['w', 'band'], band: ['band', 'w'] },
     v: { solid: ['solid', 'win'], win: ['win'], door: ['solid', 'win'] },
   },
-  symmetry: 0.8,
+  symmetry: [[0, 1], [0.45, 1], [0.6, 0.6], [1, 0.4]],
+  flatOverhang: [[0.5, 0], [0.65, 1.4], [1, 2.2]],
+  platform: {
+    depth: [[0, 4], [1, 4.6]],
+    height: [[0, 3.9], [1, 3.6]],
+    leanTo: [[0, 1], [0.45, 0.8], [0.6, 0]],
+  },
+  trim: OLD_TRIM,
   palette: {
     wall: [
       ['#a8573f', [[0, 4], [0.6, 1], [1, 0.3]]],
@@ -533,8 +630,10 @@ const store: TypeStyle = {
       params: { w: 0.45, h: 0.4, sill: 0.35, frame: 0 },
     }),
     tile('shopfront', 'shopfront', 'shop', { rows: GROUND, params: { base: 0.35 } }),
-    tile('shopdoor', 'shopfront', 'shopdoor', { rows: GROUND, params: { base: 0.35, door: 1 } }),
+    tile('shopdoor', 'shopfront', 'shopdoor', { rows: GROUND, params: { base: 0.35, door: 1, canopy: 1 } }),
     tile('door', 'door', 'door', { rows: GROUND, params: { w: 1.0, h: 2.1, glass: 0 } }),
+    // Deliveries: one roller door on a side wall (placed by the layout, never by the solver).
+    tile('roller', 'garageDoor', 'garage', { rows: GROUND, minWidth: 2.8, params: { w: 0.8, h: 3, lines: 6 } }),
   ],
   sockets: LOOSE,
   symmetry: 0.3,
@@ -546,6 +645,41 @@ const store: TypeStyle = {
       ['#c9623a', 0.6],
       ['#3f454d', [[0.6, 0], [1, 2]]],
     ],
+  },
+};
+
+/** Posts and slab; also used for station platform roofs. */
+const CANOPY: CanopyStyle = {
+  post: [[0, 0.3], [1, 0.2]],
+  spacing: [[0, 4.5], [1, 6]],
+  fascia: [[0, 0.28], [0.5, 0.4], [1, 0.65]],
+};
+
+/** Roof on posts. No walls, so the only tile is the blank one the validator asks for. */
+const canopy: TypeStyle = {
+  // Resolve scales the default height with the footprint (carport to fuel station).
+  levelHeight: [[0, 3.2], [1, 3.4]],
+  groundExtra: 0,
+  levels: [[1, 1]],
+  roofShapes: [
+    ['flat', [[0, 2], [0.5, 4], [1, 8]]],
+    ['gabled', [[0, 3], [0.5, 1], [1, 0.2]]],
+    ['skillion', [[0, 1], [1, 1.5]]],
+  ],
+  roofPitch: [[0, 22], [1, 12]],
+  roofPitchSpread: 4,
+  overhang: 0.3,
+  parapet: 0,
+  bayWidth: 4,
+  plinth: 0,
+  wallStyles: [['plain', 1]],
+  tiles: [tile('blank', 'wall', 'blank')],
+  sockets: LOOSE,
+  symmetry: 0,
+  canopy: CANOPY,
+  palette: {
+    wall: [['#d8d8d2', 3], ['#f2efe6', 2], ['#5a6067', [[0, 0.5], [1, 2]]], ['#7a5a3e', [[0, 3], [0.6, 0.3]]]],
+    roofFlat: [['#8a8d90', 3], ['#b8bcc0', 2]],
   },
 };
 
@@ -574,12 +708,18 @@ const roofDetails: Partial<Record<BuildingType, RoofDetailStyle>> = {
     clutter: 0.9,
   },
   skyscraper: { clutter: 1 },
-  industrial: { clutter: 0.7 },
+  industrial: {
+    clutter: 0.7,
+    skylights: [[0, 0.6], [1, 0.8]],
+    ridgeVent: [[0, 0.6], [0.6, 0.3], [1, 0]],
+    chimneyStack: [[0, 0.5], [0.4, 0.3], [0.55, 0]],
+  },
   station: {
     chimney: [[0, 0.6], [0.5, 0]],
     clutter: 0.4,
+    turret: [[0, 0.6], [0.45, 0.4], [0.5, 0]],
   },
-  store: { clutter: 0.8 },
+  store: { clutter: 0.8, falseFront: [[0, 0.9], [0.6, 0.7], [1, 0.4]] },
 };
 
 const withDetails = (type: BuildingType, style: TypeStyle): TypeStyle => ({
@@ -598,6 +738,7 @@ export const deTypes: Record<BuildingType, TypeStyle> = {
   industrial: withDetails('industrial', industrial),
   station: withDetails('station', station),
   store: withDetails('store', store),
+  canopy,
 };
 
 export const dePack: StylePack = { id: 'de', version: 1, palette, types: deTypes };

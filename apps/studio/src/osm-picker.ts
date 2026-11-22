@@ -19,6 +19,7 @@ export const TYPE_COLOURS: Record<string, string> = {
   industrial: '#7c7f8c',
   garage: '#9a8b6a',
   shed: '#a99d82',
+  canopy: '#8fb8c9',
   auto: '#9aa3ad',
 };
 

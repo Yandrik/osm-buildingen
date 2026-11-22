@@ -62,6 +62,13 @@ height, so window rows line up. A part's `levels` counts from the ground and
 other's walls where they touch, up to the lower part's wall top. One part gets
 the entrance: the largest one standing on the ground.
 
+Building types: house, apartments, townhouse, garage, shed, office,
+skyscraper, industrial, station, store, canopy (open-sided roof on posts).
+
+Roof shapes: flat, gabled, hipped, half-hipped, pyramidal, skillion, gambrel,
+mansard, dome, onion, cone, round, sawtooth. The curved shapes and sawtooth
+on non-industrial buildings only come from the input, they are never rolled.
+
 Precedence for dimensions: `height` > `levels` > inferred. If both are given,
 level height is derived from them. `roof.height` > `roof.levels` > style default.
 

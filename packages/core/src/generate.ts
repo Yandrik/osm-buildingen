@@ -2,8 +2,11 @@ import { difference } from './geom/boolean';
 import { perimeter, polygonArea, ringArea, ringBounds } from './geom/polygon';
 import { mergeMeshes } from './mesh/merge';
 import { assemble } from './pipeline/assemble';
+import { autoParts } from './pipeline/autoParts';
 import { buildContext } from './pipeline/context';
 import { layoutFacade } from './pipeline/facade/layout';
+import { type Corridor, buildingCorridors, findPassages } from './pipeline/passages';
+import { platformRoofs } from './pipeline/platform';
 import { resolve } from './pipeline/resolve';
 import { buildRoof } from './pipeline/roofs';
 import { applyRoofToWalls, buildWalls } from './pipeline/walls';
@@ -36,10 +39,14 @@ export function resolveBuilding(input: BuildingInput): ResolvedSpec {
  */
 export function generateBuilding(input: BuildingInput): BuildingMesh {
   if (input.parts && input.parts.length > 0) return generateParts(input, input.parts);
+  // Towers without mapped parts get a podium, shaft and crown of their own.
+  const tiers = autoParts(input);
+  if (tiers) return generateParts(input, tiers);
   return generateOne(input);
 }
 
-function generateOne(input: BuildingInput): BuildingMesh {
+/** `corridors`: for a part, the passages found on the whole building; it does not look at the roads itself. */
+function generateOne(input: BuildingInput, corridors?: readonly Corridor[]): BuildingMesh {
   const timings: Record<string, number> = {};
   let t = now();
   const lap = (name: string): void => {
@@ -51,7 +58,8 @@ function generateOne(input: BuildingInput): BuildingMesh {
   const spec = resolve(input);
   lap('resolve');
   const walls = buildWalls(spec);
-  const context = buildContext(input, spec, walls);
+  const passages = findPassages(input, spec, walls, corridors);
+  const context = buildContext(input, spec, walls, passages);
   lap('context');
 
   // No overhang where a neighbour stands close; the roof would poke into it.
@@ -67,10 +75,28 @@ function generateOne(input: BuildingInput): BuildingMesh {
   const facade = full ? layoutFacade(input, spec, walls, context) : null;
   lap('facade');
 
-  const mesh = assemble(spec, walls, roof, context, facade, input.baseElevation ?? 0, input.seed);
+  // Parts standing on this roof (the upper tiers of a tower): roof details keep clear of them.
+  const onRoof = (input.neighbours ?? [])
+    .filter((nb) => (nb.minHeight ?? 0) >= spec.base + spec.wallHeight - 0.5)
+    .map((nb) => nb.footprint);
+  let mesh = assemble(
+    spec,
+    walls,
+    roof,
+    context,
+    facade,
+    input.baseElevation ?? 0,
+    input.seed,
+    onRoof,
+    passages,
+  );
+  // Platform roofs along the rail side of a station: canopies of their own, merged in.
+  const platforms = platformRoofs(input, spec, walls, context);
+  if (platforms.length > 0) mesh = mergeMeshes([mesh, ...platforms.map((p) => generateOne(p))]);
   lap('mesh');
 
-  if (input.debug) mesh.debug = { spec, walls, context, facade, roofFaces: roof.faces.length, timings };
+  if (input.debug)
+    mesh.debug = { spec, walls, context, facade, passages, roofFaces: roof.faces.length, timings };
   return mesh;
 }
 
@@ -96,6 +122,7 @@ function partInput(
     // No overhang: parts are fitted against each other, an eave would poke into the neighbour.
     roof: { ...(part.roof ?? (hasOwnSize ? undefined : input.roof)), overhang: 0 },
     colours: { ...input.colours, ...part.colours },
+    facadeVariant: part.facadeVariant ?? input.facadeVariant,
     year: input.year,
     hasAddress: input.hasAddress,
     shop: input.shop,
@@ -176,6 +203,8 @@ function generateParts(input: BuildingInput, given: readonly PartInput[]): Build
     }
   });
   const bounds = specs.map((s) => (s ? ringBounds(s.footprint.outer) : null));
+  // Passages are judged on the whole outline and then cut into each part, so they come out continuous.
+  const corridors = buildingCorridors(input, parent);
 
   // The entrance goes to the largest part that stands on the ground.
   let entrance = -1;
@@ -214,11 +243,14 @@ function generateParts(input: BuildingInput, given: readonly PartInput[]): Build
         sameGroup: true,
       });
     });
-    const mesh = generateOne({
-      ...partIn,
-      neighbours: [...(input.neighbours ?? []), ...others],
-      entrance: i === entrance && input.entrance !== false,
-    });
+    const mesh = generateOne(
+      {
+        ...partIn,
+        neighbours: [...(input.neighbours ?? []), ...others],
+        entrance: i === entrance && input.entrance !== false,
+      },
+      corridors,
+    );
     meshes.push(mesh);
     if (mesh.debug) {
       debugs.push(mesh.debug);

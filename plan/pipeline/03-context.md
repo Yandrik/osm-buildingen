@@ -9,7 +9,7 @@ interface WallContext {
   blocked: Span[];        // parts of the wall with a neighbour closer than 1.5 m
   shared: Span[];         // parts touching a neighbour (< 0.15 m): party wall
   streetScore: number;    // 0..1, how much this wall faces the nearest road
-  passages: Span[];       // where a road passes through (height = clear height)
+  passages: PassageSpan[]; // openings of passages in this wall (height = clear height)
   openFraction: number;   // share of the wall that is not blocked
   courtyard: boolean;     // wall belongs to a hole ring
 }
@@ -38,17 +38,45 @@ Road kind matters: `road` counts fully, `path` half, `rail` only for stations
 
 ## Passages
 
-A road segment that crosses a wall produces a passage span on that wall, so a
-road through a building gives one on the entry wall and one on the exit wall.
-Buildings under 300 m² only get one when the road is flagged `passage`
-(a road merely clipping the corner of a small house is usually a mapping
-inaccuracy). Width is the road width plus 1 m (at least 2.4 m), clear height
-3.8 m for roads and 2.8 m for paths, capped by the ground level height.
+A passage is a road that runs through the building at ground level. It is a
+real opening: you can see and drive through it. Code: `pipeline/passages.ts`.
 
-The facade stage turns the ground cells under a span into arch cells. The
-arch is a dark recess 1.6 m deep, not a real tunnel: the inside of a building
-is never visible, so this reads the same from the street. A real cut through
-the massing is deferred.
+1. **Which roads.** Roads flagged `passage`, or any road crossing a footprint
+   of 300 m² or more. Rail lines never. A road merely clipping the corner of
+   a small house is a mapping inaccuracy and is ignored.
+2. **Corridor.** The road line is widened to the passage width (road width
+   plus 1 m, at least 2.4 m, at most 8 m for roads and 4.5 m for paths) and
+   clipped to the footprint including courtyards.
+3. **Is it a passage?** Only if the corridor piece touches the footprint
+   boundary in at least two separate stretches: street to street, or street
+   to courtyard. Dead ends, corner clips and slivers give nothing.
+   Overlapping corridors are merged.
+4. **Openings.** Each stretch where the corridor meets a wall becomes an
+   opening in that wall (`WallContext.passages`). The facade stage turns the
+   ground cells there into arch cells, so arch and tunnel line up exactly.
+   An oblique crossing gives a wider opening than the corridor.
+5. **Tunnel.** Side walls along the corridor, a flat ceiling at the clear
+   height, no floor (the caller draws ground and roads). Clear height is
+   3.8 m for roads and 2.8 m for paths, limited by the ground level height;
+   below 2.2 m the passage is skipped with a note.
+6. **Arch.** The opening has a segmental arch with a trim band. Behind the
+   facade the ceiling is flat at the arch's apex height; the lunette above
+   the arch curve is closed on the inside. Where a neighbour stands against
+   the opening (the next part of the same building, the next house in a
+   row), the opening is a plain hole up to the ceiling, so the tunnel
+   continues without a lip.
+7. **Parts.** Each part computes its own corridor from the same roads; on the
+   ground level the corridor wins over "blocked by the neighbouring part", so
+   a passage through two parts is continuous. Parts starting above the
+   ground are not cut.
+8. **Massing detail.** The same tunnel with a plain rectangular opening.
+
+The passages are listed in `BuildingDebug.passages` (polygon, clear height,
+openings).
+
+In the Ulm fixture the adapter flags roads at 44 buildings; 19 of them get a
+real passage (20 in total). The rest are footways under canopies and arcades
+or roads that only touch a corner.
 
 ## Cost
 

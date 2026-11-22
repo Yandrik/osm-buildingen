@@ -49,12 +49,13 @@ export const BUILDING_TYPE: Readonly<Record<string, BuildingType | typeof RESIDE
   townhouse: 'townhouse',
   garage: 'garage',
   garages: 'garage',
-  carport: 'garage',
+  carport: 'canopy',
   shed: 'shed',
   hut: 'shed',
   allotment_house: 'shed',
-  // Roof on pillars (canopy, shelter). Core has no open-sided type; a shed is the closest small volume.
-  roof: 'shed',
+  // Roofs on posts: fuel stations, platforms, shelters, carports.
+  roof: 'canopy',
+  canopy: 'canopy',
   greenhouse: 'shed',
   toilets: 'shed',
   service: 'shed',
@@ -96,6 +97,10 @@ export const OTHER_TYPE: readonly { key: string; values?: readonly string[]; typ
   { key: 'railway', values: ['station', 'halt'], type: 'station' },
   { key: 'public_transport', values: ['station'], type: 'station' },
   { key: 'amenity', values: ['bus_station', 'ferry_terminal'], type: 'station' },
+  // Shelters are roofs on posts, except the kinds that have walls.
+  { key: 'shelter_type', values: ['basic_hut', 'lean_to', 'rock_shelter', 'weather_shelter'], type: 'shed' },
+  { key: 'amenity', values: ['shelter'], type: 'canopy' },
+  { key: 'shelter_type', type: 'canopy' },
   { key: 'office', type: 'office' },
   {
     key: 'amenity',

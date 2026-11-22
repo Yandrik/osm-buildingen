@@ -137,10 +137,10 @@ export const ROOF_SHAPE_TABLE: Readonly<Record<string, RoofShape>> = {
   conical: 'cone',
   round: 'round',
   barrel: 'round',
+  sawtooth: 'sawtooth',
   // Close relatives until core has the exact shape.
   double_saltbox: 'gabled',
   quadruple_saltbox: 'hipped',
-  sawtooth: 'flat',
   butterfly: 'flat',
 };
 

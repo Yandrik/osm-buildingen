@@ -7,6 +7,7 @@ import { buildHipped, canBuildHipped } from './hipped';
 import { buildPyramidal } from './pyramidal';
 import { buildRadial } from './radial';
 import { buildRound } from './round';
+import { buildSawtooth } from './sawtooth';
 import { buildSkillion } from './skillion';
 
 export interface RoofContext {
@@ -65,6 +66,11 @@ export function supportedRoofShape(
       return shape;
     case 'hipped':
       return canBuildHipped(metrics) ? 'hipped' : 'gabled';
+    case 'sawtooth':
+      // Strips across the axis need a footprint that is long enough for at least one tooth;
+      // rolled ones also a near-rectangle, so every tooth runs across the whole hall.
+      if (metrics.box.halfLength < 2.5) return 'flat';
+      return explicit || metrics.rectangularity > 0.85 ? 'sawtooth' : 'flat';
   }
 }
 
@@ -82,7 +88,9 @@ export function roofHalfSpan(
   across: boolean,
 ): number {
   const box = across ? metrics.box.halfLength : metrics.box.halfWidth;
-  const perWing = !['flat', 'skillion', 'pyramidal', 'dome', 'onion', 'cone', 'round'].includes(shape);
+  const perWing = !['flat', 'skillion', 'pyramidal', 'dome', 'onion', 'cone', 'round', 'sawtooth'].includes(
+    shape,
+  );
   if (!perWing || across) return box;
   if (footprint.holes.length === 0 && metrics.rectangularity > NEAR_RECTANGLE) return box;
   const skeleton = straightSkeleton(footprint.outer, footprint.holes);
@@ -116,6 +124,9 @@ export function buildRoof(ctx: RoofContext): RoofGeometry {
     case 'round':
       roof = hasHoles ? null : buildRound(ctx);
       if (!roof && !hasHoles) roof = buildGabled(ctx);
+      break;
+    case 'sawtooth':
+      roof = hasHoles ? null : buildSawtooth(ctx);
       break;
     case 'hipped':
     case 'mansard':

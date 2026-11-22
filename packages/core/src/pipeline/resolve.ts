@@ -101,6 +101,9 @@ function roofHeightFromPitch(shape: RoofShape, pitchDeg: number, halfSpan: numbe
       return halfSpan * 0.6;
     case 'cone':
       return Math.min(halfSpan * 2, 14);
+    // Height of one tooth; teeth are about 6 m wide whatever the footprint.
+    case 'sawtooth':
+      return Math.min(Math.max(Math.tan(pitchDeg * DEG) * 6, 1.6), 3.5);
     default:
       return Math.min(Math.tan(pitchDeg * DEG) * halfSpan, 9);
   }
@@ -162,9 +165,12 @@ export function resolve(input: BuildingInput): ResolvedSpec {
   }
 
   // --- Heights ---
-  const nominalLevel = evalCurve(style.levelHeight, era);
-  const groundExtra = evalCurve(style.groundExtra, era);
+  let nominalLevel = evalCurve(style.levelHeight, era);
+  // Roofs on posts: a carport is lower than a fuel-station canopy.
+  if (type === 'canopy') nominalLevel = clamp(2.2 + Math.sqrt(metrics.area) * 0.15, 2.6, 4.6);
   const base = Math.max(0, input.minHeight ?? 0);
+  // A part that starts above the ground (a tower's shaft) has no taller ground floor.
+  const groundExtra = base < 0.5 ? evalCurve(style.groundExtra, era) : 0;
   const pitch = evalCurve(style.roofPitch, era) + (root.fork('pitch').next() * 2 - 1) * style.roofPitchSpread;
 
   let roofHeight: number;
@@ -194,6 +200,9 @@ export function resolve(input: BuildingInput): ResolvedSpec {
     levelHeights = Array.from({ length: levels }, (_, i) =>
       mm((nominalLevel + (i === 0 ? extra : 0)) * unit),
     );
+    // The top level takes the rounding, so the walls end exactly at the given height.
+    const below = levelHeights.slice(0, -1).reduce((a, b) => a + b, 0);
+    levelHeights[levels - 1] = mm(wall - below);
   } else {
     if (input.levels && input.levels >= 1) {
       levels = Math.round(input.levels);
@@ -207,13 +216,20 @@ export function resolve(input: BuildingInput): ResolvedSpec {
   }
   const wallHeight = mm(levelHeights.reduce((a, b) => a + b, 0));
 
+  const overhang = mm(
+    Math.max(
+      0,
+      input.roof?.overhang ?? evalCurve(shape === 'flat' ? (style.flatOverhang ?? 0) : style.overhang, era),
+    ),
+  );
   const roof: ResolvedRoof = {
     shape,
     height: shape === 'flat' ? 0 : roofHeight,
     ridgeAxis,
     slopeDirection,
-    overhang: shape === 'flat' ? 0 : mm(Math.max(0, input.roof?.overhang ?? evalCurve(style.overhang, era))),
-    parapet: shape === 'flat' ? mm(evalCurve(style.parapet, era)) : 0,
+    overhang,
+    // A flat roof that reaches past the walls is a slab, not a parapet.
+    parapet: shape === 'flat' && overhang === 0 ? mm(evalCurve(style.parapet, era)) : 0,
   };
 
   // --- Palette ---
@@ -242,9 +258,13 @@ export function resolve(input: BuildingInput): ResolvedSpec {
   const wallStyle: WallStyle = pickWeighted(group.fork('wallStyle'), style.wallStyles, era) ?? 'plain';
   const wallStyleFromLevel =
     wallStyle === 'timber' && levels >= 2 && root.fork('timberFrom').chance(0.5) ? 1 : 0;
-  const facadeVariant = style.variants
+  const rolledVariant = style.variants
     ? (pickWeighted(group.fork('variant'), style.variants, era) ?? '')
     : '';
+  const facadeVariant =
+    input.facadeVariant !== undefined && style.tiles.some((t) => t.variant === input.facadeVariant)
+      ? input.facadeVariant
+      : rolledVariant;
   const symmetric = root.fork('symmetry').chance(evalCurve(style.symmetry, era));
   const attachedGarage =
     style.attachedGarage !== undefined &&

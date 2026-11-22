@@ -5,12 +5,14 @@ import type {
   BuildingInput,
   FacadeCell,
   FacadeLayout,
+  FacadeOpening,
   ResolvedSpec,
   WallContext,
   WallSegment,
 } from '../../types';
 import { GENERATOR_VERSION } from '../../version';
 import { isBlocked } from '../context';
+import { railSides } from '../platform';
 import { DOWN, LEFT, RIGHT, type SolverProblem, UP, solve } from './solver';
 
 /** Walls shorter than this get one cell that stays blank. */
@@ -24,8 +26,8 @@ interface Cell extends FacadeCell {
   narrow: boolean;
   /** Index of a tile fixed before solving, or -1. */
   fixed: number;
-  /** Set when a road passes through this cell: opening edges (cell-local) and clear height. */
-  passage: { from: number; to: number; height: number } | null;
+  /** Set when a road passes through this cell: the openings, cell-local. */
+  passage: FacadeOpening[] | null;
 }
 
 interface Tables {
@@ -132,6 +134,8 @@ export function layoutFacade(
   walls: WallSegment[],
   context: WallContext[],
 ): FacadeLayout {
+  // Roofs on posts have no walls to lay out.
+  if (spec.type === 'canopy') return { cells: [], streetWall: -1, attempts: 0, fallback: false };
   const { tiles, compat } = buildTables(spec);
   const { cells, columns } = buildCells(spec, walls, context);
   const rng = new Rng(seedFrom(GENERATOR_VERSION, 'facade', input.seed));
@@ -160,8 +164,20 @@ export function layoutFacade(
       for (const span of (context[w] as WallContext).passages) {
         for (let c = 0; c < (columns[w] as number); c++) {
           const cell = cells[cellAt(w, 0, c)] as Cell;
-          if (cell.narrow || span.to <= cell.x + 0.05 || span.from >= cell.x + cell.width - 0.05) continue;
-          cell.passage = { from: span.from - cell.x, to: span.to - cell.x, height: span.height };
+          // The tunnel behind is real, so every cell the span touches must open, narrow ones too.
+          if (span.to <= cell.x + 1e-3 || span.from >= cell.x + cell.width - 1e-3) continue;
+          const opening: FacadeOpening = {
+            from: span.openFrom - cell.x,
+            to: span.openTo - cell.x,
+            height: span.height,
+            flat: span.flat,
+            endFrom: span.from >= cell.x - 1e-6,
+            endTo: span.to <= cell.x + cell.width + 1e-6,
+            capFrom: span.capFrom && span.from >= cell.x - 1e-6,
+            capTo: span.capTo && span.to <= cell.x + cell.width + 1e-6,
+          };
+          if (cell.passage) cell.passage.push(opening);
+          else cell.passage = [opening];
           cell.fixed = blankGround; // solved as plain wall, drawn as an arch
         }
       }
@@ -171,6 +187,8 @@ export function layoutFacade(
   // --- Street wall: best street score, else the longest open wall. ---
   let streetWall = -1;
   let bestScore = 0;
+  // Stations: the main entrance faces the town, not the tracks (the platform side gets a roof).
+  const rail = spec.type === 'station' ? railSides(input, walls) : [];
   walls.forEach((wall, w) => {
     const ctx = context[w] as WallContext;
     if (wall.length < MIN_WALL) return;
@@ -180,7 +198,9 @@ export function layoutFacade(
     ).some((c) => !c.blocked && c.fixed < 0);
     if (!hasFreeGround) return;
     // Without roads every streetScore is 0, so fall back to open length; courtyards last.
-    const score = ctx.streetScore * 1000 + wall.length * ctx.openFraction * (ctx.courtyard ? 0.1 : 1);
+    const score =
+      (ctx.streetScore * 1000 + wall.length * ctx.openFraction * (ctx.courtyard ? 0.1 : 1)) *
+      (rail[w] ? 0.001 : 1);
     if (score > bestScore + 1e-9) {
       bestScore = score;
       streetWall = w;
@@ -260,6 +280,27 @@ export function layoutFacade(
         cellAt(streetWall, 0, free[Math.min(pick, free.length - 1)] as number),
         byRole('door', kind, width),
       );
+    }
+  }
+
+  // --- Stores: one roller door for deliveries on the most open wall that is not the front. ---
+  if (spec.type === 'store' && streetWall >= 0 && wantsEntrance) {
+    const front = walls[streetWall] as WallSegment;
+    let service = -1;
+    let best = 0;
+    walls.forEach((wall, w) => {
+      if (w === streetWall || wall.ring !== 0) return;
+      if (wall.normal[0] * front.normal[0] + wall.normal[1] * front.normal[1] > 0.5) return;
+      const open = wall.length * (context[w] as WallContext).openFraction;
+      if (open > best + 1e-9) {
+        best = open;
+        service = w;
+      }
+    });
+    if (service >= 0) {
+      const roller = byRole('garage', 'ground', (cells[cellAt(service, 0, 0)] as Cell).width);
+      for (const c of centreOut(columns[service] as number, rng.fork('serviceSide').chance(0.5)))
+        if (fix(cellAt(service, 0, c), roller)) break;
     }
   }
 
@@ -351,7 +392,16 @@ export function layoutFacade(
     height: cell.height,
     blocked: cell.blocked,
     ...(cell.passage
-      ? { tile: '#arch', role: 'arch' as const, params: cell.passage }
+      ? {
+          tile: '#arch',
+          role: 'arch' as const,
+          params: {
+            from: (cell.passage[0] as FacadeOpening).from,
+            to: (cell.passage[0] as FacadeOpening).to,
+            height: (cell.passage[0] as FacadeOpening).height,
+          },
+          openings: cell.passage,
+        }
       : {
           tile: (tiles[chosen[index] as number] as FacadeTile).id,
           role: (tiles[chosen[index] as number] as FacadeTile).role,

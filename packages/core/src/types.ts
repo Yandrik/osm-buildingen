@@ -20,6 +20,8 @@ export const BUILDING_TYPES = [
   'industrial',
   'station',
   'store',
+  /** Roof on posts, no walls (OSM building=roof, carports, shelters, fuel-station canopies). */
+  'canopy',
 ] as const;
 export type BuildingType = (typeof BUILDING_TYPES)[number];
 
@@ -36,6 +38,7 @@ export const ROOF_SHAPES = [
   'onion',
   'cone',
   'round',
+  'sawtooth',
 ] as const;
 export type RoofShape = (typeof ROOF_SHAPES)[number];
 
@@ -77,6 +80,8 @@ export interface PartInput {
   minLevel?: number;
   roof?: RoofInput;
   colours?: ColourInput;
+  /** Facade variant of the style pack for this part instead of the building's (see BuildingInput). */
+  facadeVariant?: string;
 }
 
 export interface NeighbourInput {
@@ -127,6 +132,11 @@ export interface BuildingInput {
   shopProbability?: number;
   /** Set to false for a building without an entrance door (default true). */
   entrance?: boolean;
+  /**
+   * Facade variant of the style pack (for example 'curtain' for offices) instead of a
+   * rolled one. Ignored when no tile of the type uses that variant.
+   */
+  facadeVariant?: string;
   neighbours?: readonly NeighbourInput[];
   roads?: readonly RoadInput[];
   /** Buildings with the same key share era and palette. */
@@ -249,6 +259,8 @@ export interface RoofFace {
   holes?: Vec3In[][];
   /** `curved` faces approximate a curved surface (domes, barrel roofs); they get no dormers or chimneys. */
   kind: 'slope' | 'flat' | 'curved';
+  /** Drawn in the glass colour instead of the roof colour (sawtooth glazing). */
+  material?: 'glass';
 }
 
 export interface RoofGeometry {
@@ -284,8 +296,8 @@ export interface WallContext {
   shared: Span[];
   /** 0..1, how much the wall faces the nearest road. */
   streetScore: number;
-  /** Where a road passes through the wall; `height` is the clear height of the opening. */
-  passages: Span[];
+  /** Where a passage opens through the wall; `height` is the clear height of the opening. */
+  passages: PassageSpan[];
   /** Fraction of the wall length that is not blocked. */
   openFraction: number;
   courtyard: boolean;
@@ -304,8 +316,70 @@ export interface FacadeCell {
   /** Tile id from the style pack, or '#arch' for a passage cell. */
   tile: string;
   role: TileRole;
-  /** Extra parameters for built-in tiles (the passage arch). */
+  /** Extra parameters for built-in tiles (the passage arch: `from`, `to`, `height` of its first opening). */
   params?: Record<string, number>;
+  /** Passage openings in an '#arch' cell, in order along the wall. */
+  openings?: FacadeOpening[];
+}
+
+/** One end of a passage where it meets a wall (see plan/pipeline/03-context.md, "Passages"). */
+export interface PassageOpening {
+  wall: number;
+  /** The open stretch of this wall, metres from `a`. */
+  from: number;
+  to: number;
+  /**
+   * The whole opening measured along this wall's line. Equal to `from`/`to` unless the
+   * opening continues around a corner onto the next wall; then it reaches beyond the
+   * wall so that all walls of one opening share a single arch.
+   */
+  openFrom: number;
+  openTo: number;
+  /**
+   * The space behind this end of the stretch is open beside it (oblique tunnel wall,
+   * re-entrant corner), so the thickness of the wall above the arch needs a closing face.
+   */
+  capFrom: boolean;
+  capTo: boolean;
+}
+
+/** A road corridor cut through the ground level of a building. */
+export interface Passage {
+  /** Floor outline of the tunnel: the road corridor inside the footprint. Counter-clockwise. */
+  polygon: Vec2[];
+  /** Building mass standing inside the corridor (clockwise rings); usually none. */
+  holes: Vec2[][];
+  /** Height of the tunnel ceiling above the wall base. */
+  clearHeight: number;
+  openings: PassageOpening[];
+  /** Edges of the outline that get a tunnel wall; all others lie in an opening. */
+  sides: [Vec2, Vec2][];
+}
+
+/** A passage opening on a wall as the facade stage sees it; `height` is the clear height. */
+export interface PassageSpan extends Span {
+  openFrom: number;
+  openTo: number;
+  capFrom: boolean;
+  capTo: boolean;
+  /** Plain rectangular hole up to the tunnel ceiling instead of an arch (party walls). */
+  flat: boolean;
+}
+
+/** A passage opening inside one facade cell, in cell-local metres. */
+export interface FacadeOpening {
+  /** Edges of the whole opening; they may lie outside the cell when it spans several. */
+  from: number;
+  to: number;
+  /** Clear height at the apex, which is also the height of the tunnel ceiling. */
+  height: number;
+  flat: boolean;
+  /** The opening ends in this cell on its left / right, as far as this wall goes. */
+  endFrom: boolean;
+  endTo: boolean;
+  /** Close the wall thickness at that end (see PassageOpening); only set together with the end. */
+  capFrom: boolean;
+  capTo: boolean;
 }
 
 export interface FacadeLayout {
@@ -323,6 +397,8 @@ export interface BuildingDebug {
   walls: WallSegment[];
   context: WallContext[];
   facade: FacadeLayout | null;
+  /** Road corridors cut through the ground level; empty for most buildings. */
+  passages: Passage[];
   roofFaces: number;
   timings: Record<string, number>;
   /** For buildings made of parts: one entry per part; the fields above describe the entrance part. */

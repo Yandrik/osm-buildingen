@@ -13,14 +13,15 @@ Status legend: [ ] open, [~] in progress, [x] done.
    import in the studio.
 5. [x] **Eras and regions.** Modernity across the German pack including
    timber frame; US suburban pack.
-6. [~] **More types.** Townhouse / store, office, skyscraper, industrial,
-   station all generate from the German definitions. Still open: skyscraper
-   podium and crown, station platform canopy, sawtooth roofs, US-specific
-   commercial tiles.
-7. [~] **Finish.** Passages and arches, roof details (chimneys, dormers,
-   attic windows, rooftop units), massing detail level and golden tests are
-   done. Still open: a real tunnel through the building (the arch is a dark
-   recess), trim bands, benchmarks in the browser, tuning on real towns.
+6. [x] **More types.** Townhouse / store, office, skyscraper (podium, shaft,
+   crown), industrial (sawtooth roofs, stacks), station (platform roof,
+   arched windows) and the open-sided canopy type. US-specific commercial
+   tiles are deferred.
+7. [~] **Finish.** Real passages through buildings, roof details, trim bands
+   on older buildings, massing detail level and golden tests are done. Parts
+   that do not cover their outline now leave the outline's body standing, and
+   dome, onion, cone, round and sawtooth roofs exist. Still open: terrain,
+   benchmarks on a real GPU, tuning on real towns.
 8. [x] **Vector tiles.** Evaluate OpenMapTiles as an input source. Evaluated
    and added as `packages/vector-tiles` with a viewer source; same buildings and
    levels as the OSM adapter in Ulm, without roof shapes and types.

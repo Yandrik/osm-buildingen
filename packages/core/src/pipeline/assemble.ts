@@ -11,6 +11,8 @@ import type { FacadeTile } from '../styles/types';
 import type {
   BuildingMesh,
   FacadeLayout,
+  Passage,
+  Polygon,
   ResolvedSpec,
   RoofGeometry,
   Vec3,
@@ -18,7 +20,10 @@ import type {
   WallContext,
   WallSegment,
 } from '../types';
+import { addCanopy } from './canopy';
+import { addTunnels, wallWithOpenings } from './passages';
 import { addRoofDetails } from './roofDetails';
+import { addTrim } from './trim';
 
 /** Thickness of the roof slab where it overhangs. */
 const ROOF_THICKNESS = 0.16;
@@ -36,6 +41,10 @@ export function assemble(
   facade: FacadeLayout | null,
   baseElevation: number,
   seed: string | number,
+  /** Footprints of parts standing on this roof; roof details keep clear of them. */
+  onRoof: readonly Polygon[] = [],
+  /** Road corridors through the ground level; their openings are already in `context` and `facade`. */
+  passages: readonly Passage[] = [],
 ): BuildingMesh {
   const mb = new MeshBuilder();
   const ground = baseElevation + spec.base;
@@ -58,7 +67,10 @@ export function assemble(
     height,
   });
 
-  if (facade) {
+  if (spec.type === 'canopy') {
+    // Roof on posts: no walls at all.
+    addCanopy({ mb, spec, walls, context, roof, baseElevation });
+  } else if (facade) {
     for (const cell of facade.cells) {
       const wall = walls[cell.wall] as WallSegment;
       const tile = tiles.get(cell.tile);
@@ -74,11 +86,22 @@ export function assemble(
         seed: seedFrom(seed, cell.wall, cell.row, cell.column),
       };
       const frame = wallFrame(wall, cell.x, cell.y, cell.width, cell.height);
-      if (cell.role === 'arch') arch(mb, frame, { ...ctx, params: cell.params ?? {}, timber: false });
+      if (cell.role === 'arch') arch(mb, frame, { ...ctx, timber: false }, cell.openings ?? []);
       else piece?.(mb, frame, ctx);
     }
   } else {
-    for (const wall of walls) {
+    walls.forEach((wall, w) => {
+      const spans = (context[w] as WallContext).passages;
+      if (spans.length > 0) {
+        // Massing: a plain rectangular hole where a passage opens, so far tiles show the gap too.
+        const point = (u: number, v: number): Vec3 =>
+          world([wall.a[0] + wall.dir[0] * u, wall.a[1] + wall.dir[1] * u], v);
+        wallWithOpenings(spans, wall.length, spec.wallHeight, (u0, v0, u1, v1) => {
+          if (u1 - u0 > 1e-4 && v1 - v0 > 1e-4)
+            mb.quad(point(u0, v0), point(u1, v0), point(u1, v1), point(u0, v1), palette.wall);
+        });
+        return;
+      }
       mb.quad(
         world(wall.a, 0),
         world(wall.b, 0),
@@ -86,12 +109,16 @@ export function assemble(
         world(wall.a, spec.wallHeight),
         palette.wall,
       );
-    }
+    });
   }
+  if (passages.length > 0) addTunnels(mb, passages, world, palette.wall);
+
+  // Level bands and cornice on older buildings (style `trim`).
+  if (facade) addTrim({ mb, spec, walls, context, baseElevation, seed });
 
   // Wall above the eave line: gable ends and the high sides under a skillion roof.
   for (const wall of walls) {
-    if (wall.top.length < 2) continue;
+    if (wall.top.length < 2 || spec.type === 'canopy') continue;
     const pts: Vec3[] = [world(wall.a, spec.wallHeight), world(wall.b, spec.wallHeight)];
     for (let i = wall.top.length - 1; i >= 0; i--) {
       const p = wall.top[i] as { t: number; h: number };
@@ -113,10 +140,10 @@ export function assemble(
     const pts = face.points.map(worldAbs);
     mb.polygon(
       pts,
-      palette.roof,
+      face.material === 'glass' ? palette.glass : palette.roof,
       face.holes?.map((h) => h.map(worldAbs)),
     );
-    if (slab && face.kind === 'slope') {
+    if (slab && face.kind !== 'curved' && !face.holes?.length) {
       // Underside, so the overhang is not see-through from below.
       const under = face.points
         .map((p): Vec3 => [p[0], baseElevation + p[2] - ROOF_THICKNESS, -p[1]])
@@ -170,7 +197,18 @@ export function assemble(
     }
   }
 
-  if (facade) addRoofDetails({ mb, spec, walls, context, roof, baseElevation, seed });
+  if (facade)
+    addRoofDetails({
+      mb,
+      spec,
+      walls,
+      context,
+      roof,
+      baseElevation,
+      seed,
+      onRoof,
+      streetWall: facade.streetWall,
+    });
 
   void eave;
   return mb.finish();

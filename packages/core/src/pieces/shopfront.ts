@@ -5,7 +5,8 @@ import type { Piece } from './types';
 
 /**
  * Shop window from a low base up to a sign band. Runs edge to edge so neighbouring
- * cells form one front. Params: base = base height in metres, door = 1 adds a glazed door.
+ * cells form one front. Params: base = base height in metres, door = 1 adds a glazed door,
+ * canopy = 1 a flat canopy over the door.
  */
 export const shopfront: Piece = (mb, f, ctx) => {
   const W = f.width;
@@ -36,6 +37,11 @@ export const shopfront: Piece = (mb, f, ctx) => {
     // Base strips beside the door.
     rect(mb, f, post, 0, a - 0.03, base, ctx.palette.base, -depth + 0.02);
     rect(mb, f, a + dw + 0.03, 0, W - post, base, ctx.palette.base, -depth + 0.02);
+    if (param(ctx, 'canopy', 0) >= 1 && top > 2.6) {
+      const trim = ctx.palette.trim;
+      const v = Math.min(top - 0.05, 2.75);
+      box(mb, f, a - 0.5, v, a + dw + 0.5, v + 0.18, 0, 1.4, trim, { back: false }, shade(trim, 0.8));
+    }
   }
   // Sign band: a slim coloured box, no text.
   const c = ctx.palette.accent;

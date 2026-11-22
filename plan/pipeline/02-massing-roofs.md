@@ -173,3 +173,11 @@ kind `curved` and get no dormers or chimneys.
 A tagged gable on a footprint with small holes (towers standing inside the
 body, under 12 % of the area) keeps one ridge on the box axis and cuts the
 holes out with the clipper. Larger holes are courtyards and get a hipped ring.
+
+## Sawtooth roofs
+
+`roofs/sawtooth.ts`. The footprint is cut into strips across the long axis,
+one tooth each: a long low slope and a short steep glazed face. Every strip is
+a planar face, so the side walls follow the zigzag exactly. Rolled for older
+industrial buildings on rectangular-ish footprints and honoured when tagged
+(OSM `roof:shape=sawtooth`).

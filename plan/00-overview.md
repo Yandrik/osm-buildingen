@@ -28,7 +28,8 @@ believable low-poly 3D model, fast enough to generate live while map tiles load.
 ## Building types in scope
 
 house, apartments, townhouse (optional ground-floor store), garage, shed, office,
-skyscraper, industrial (factory / storage hall), station (bus / train), store.
+skyscraper, industrial (factory / storage hall), station (bus / train), store,
+canopy (open-sided roof: carport, shelter, fuel station).
 
 ## Non-goals (for now)
 

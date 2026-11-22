@@ -1,13 +1,20 @@
 import { distanceToRing, ringBounds } from '../geom/polygon';
-import { type Vec2, cross, pointSegment, sub } from '../geom/vec2';
-import type { BuildingInput, ResolvedSpec, Span, WallContext, WallSegment } from '../types';
+import { type Vec2, pointSegment } from '../geom/vec2';
+import type {
+  BuildingInput,
+  Passage,
+  PassageOpening,
+  PassageSpan,
+  ResolvedSpec,
+  Span,
+  WallContext,
+  WallSegment,
+} from '../types';
 
 /** Closer than this, a neighbour blocks doors and windows. */
 export const BLOCK_DISTANCE = 1.5;
 /** Closer than this, the wall is treated as a party wall. */
 export const SHARED_DISTANCE = 0.15;
-/** Below this footprint area a crossing road only makes a passage when it is flagged as one. */
-export const PASSAGE_MIN_AREA = 300;
 const STEP = 0.25;
 
 function mergeSpans(
@@ -36,10 +43,16 @@ function mergeSpans(
 }
 
 /**
- * Stage 3. For every wall: where neighbours block it, and how much it faces a road.
+ * Stage 3. For every wall: where neighbours block it, how much it faces a road and
+ * where the passages (found by pipeline/passages.ts) open through it.
  * See plan/pipeline/03-context.md.
  */
-export function buildContext(input: BuildingInput, spec: ResolvedSpec, walls: WallSegment[]): WallContext[] {
+export function buildContext(
+  input: BuildingInput,
+  spec: ResolvedSpec,
+  walls: WallSegment[],
+  found: readonly Passage[] = [],
+): WallContext[] {
   const neighbours = (input.neighbours ?? [])
     .filter((n) => n.footprint.outer.length >= 3)
     .map((n) => ({
@@ -51,8 +64,16 @@ export function buildContext(input: BuildingInput, spec: ResolvedSpec, walls: Wa
     // A neighbour entirely above or below this building's walls does not touch them.
     .filter((n) => n.minHeight < spec.base + spec.wallHeight - 0.1 && n.height > spec.base + 0.1);
   const roads = (input.roads ?? []).filter((r) => r.line.length >= 2);
+  const openings = new Map<number, { opening: PassageOpening; clear: number }[]>();
+  for (const passage of found) {
+    for (const opening of passage.openings) {
+      const list = openings.get(opening.wall);
+      if (list) list.push({ opening, clear: passage.clearHeight });
+      else openings.set(opening.wall, [{ opening, clear: passage.clearHeight }]);
+    }
+  }
 
-  return walls.map((wall) => {
+  return walls.map((wall, w) => {
     const samples = Math.max(1, Math.round(wall.length / STEP));
     const step = wall.length / samples;
     const blocked: Span[] = [];
@@ -117,28 +138,25 @@ export function buildContext(input: BuildingInput, spec: ResolvedSpec, walls: Wa
     streetScore *= openFraction;
     if (wall.ring > 0) streetScore *= 0.2;
 
-    // Passages: a road crossing this wall. Small buildings only get one when the road is flagged.
-    const passages: Span[] = [];
-    for (const road of roads) {
-      if (road.kind === 'rail') continue;
-      if (!road.passage && spec.metrics.area < PASSAGE_MIN_AREA) continue;
-      for (let i = 0; i + 1 < road.line.length; i++) {
-        const p = road.line[i] as Vec2;
-        const r = sub(road.line[i + 1] as Vec2, p);
-        const den = cross(r, wall.dir);
-        if (Math.abs(den) < 1e-9) continue;
-        const t = cross(sub(wall.a, p), wall.dir) / den; // along the road segment, 0..1
-        const u = cross(sub(wall.a, p), r) / den; // along the wall, metres
-        if (t < 0 || t > 1 || u < 0 || u > wall.length) continue;
-        const width = Math.min(wall.length - 0.6, Math.max(2.4, (road.width ?? 3.5) + 1));
-        if (width < 1.8) continue;
-        const from = Math.max(0.3, Math.min(wall.length - 0.3 - width, u - width / 2));
-        const clear = road.kind === 'path' ? 2.8 : 3.8;
-        if (!passages.some((s) => s.from < from + width && s.to > from)) {
-          passages.push({ from, to: from + width, height: clear });
-        }
-      }
-    }
+    // Passages. Where a neighbour stands against the opening (the next part of the same
+    // building, a house in the same row) the tunnel goes on behind the wall, so the
+    // opening is a plain hole up to the ceiling rather than an arch with a lunette.
+    const passages: PassageSpan[] = (openings.get(w) ?? []).map(({ opening, clear }) => ({
+      from: opening.from,
+      to: opening.to,
+      height: clear,
+      openFrom: opening.openFrom,
+      openTo: opening.openTo,
+      capFrom: opening.capFrom,
+      capTo: opening.capTo,
+      flat: shared.some(
+        (s) =>
+          s.to > opening.from + STEP &&
+          s.from < opening.to - STEP &&
+          (s.minHeight ?? 0) < spec.base + clear &&
+          s.height > spec.base + 0.1,
+      ),
+    }));
 
     return { blocked, shared, passages, streetScore, openFraction, courtyard: wall.ring > 0 };
   });
