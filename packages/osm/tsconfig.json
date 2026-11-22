@@ -1,6 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "outDir": "dist", "rootDir": ".", "lib": ["ES2022", "DOM"] },
+  "compilerOptions": { "outDir": ".tsbuild", "rootDir": ".", "lib": ["ES2022", "DOM"] },
   "include": ["src", "test"],
   "references": [{ "path": "../core" }]
 }

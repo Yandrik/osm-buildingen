@@ -16,6 +16,17 @@ plan/       this design.
 pnpm workspace, strict TypeScript, vitest, vite for the apps, biome for
 formatting and linting.
 
+## Packaging
+
+Inside the workspace every package points at its TypeScript source, so apps
+and tests need no build. For npm, tsup (dev dependency) bundles each entry
+point to ESM plus a single `.d.ts` in `packages/*/dist`, and `publishConfig`
+swaps the entry points on `pnpm publish`. Bundled declarations matter: plain
+`tsc` output keeps extensionless relative imports, which break consumers on
+`moduleResolution: nodenext`. `tsc -b` (typecheck only) writes to `.tsbuild`
+so the two never mix. The four packages share one version. Release steps are
+in the root README.
+
 ## Dependency rules
 
 - `core` has two runtime dependencies: `earcut` (triangulation) and

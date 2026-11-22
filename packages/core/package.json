@@ -3,12 +3,37 @@
   "version": "0.1.0",
   "description": "Low-poly procedural building generator: footprint + attributes -> mesh buffers",
   "license": "MIT",
+  "author": "Yandrik",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yandrik/osm-buildingen.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/Yandrik/osm-buildingen#readme",
+  "bugs": "https://github.com/Yandrik/osm-buildingen/issues",
+  "keywords": ["procedural", "building", "generator", "low-poly", "3d", "mesh", "openstreetmap"],
   "type": "module",
-  "sideEffects": ["./src/index.ts"],
+  "sideEffects": ["./src/index.ts", "./dist/index.js"],
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean --target es2022 --sourcemap",
+    "prepack": "pnpm run build && cp ../../LICENSE LICENSE"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
   },
   "dependencies": {
     "earcut": "^3.0.1",

@@ -1,6 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "outDir": "dist", "rootDir": ".", "lib": ["ES2022", "DOM", "WebWorker"] },
+  "compilerOptions": { "outDir": ".tsbuild", "rootDir": ".", "lib": ["ES2022", "DOM", "WebWorker"] },
   "include": ["src"],
   "references": [{ "path": "../core" }]
 }

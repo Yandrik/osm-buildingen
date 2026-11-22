@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "OpenStreetMap adapter for @osm-buildingen/core: OSM data -> BuildingInput[]",
   "license": "MIT",
+  "author": "Yandrik",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yandrik/osm-buildingen.git",
+    "directory": "packages/osm"
+  },
+  "homepage": "https://github.com/Yandrik/osm-buildingen#readme",
+  "bugs": "https://github.com/Yandrik/osm-buildingen/issues",
+  "keywords": ["openstreetmap", "osm", "overpass", "building", "procedural"],
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -11,5 +20,27 @@
     ".": "./src/index.ts",
     "./overpass": "./src/overpass.ts"
   },
-  "dependencies": { "@osm-buildingen/core": "workspace:*" }
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup src/index.ts src/overpass.ts --format esm --dts --clean --target es2022 --sourcemap",
+    "prepack": "pnpm run build && cp ../../LICENSE LICENSE"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./overpass": {
+        "types": "./dist/overpass.d.ts",
+        "import": "./dist/overpass.js"
+      }
+    }
+  },
+  "dependencies": {
+    "@osm-buildingen/core": "workspace:*"
+  }
 }
