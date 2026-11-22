@@ -1,0 +1,11 @@
+{
+  "name": "@osm-buildingen/core",
+  "version": "0.1.0",
+  "description": "Low-poly procedural building generator: footprint + attributes -> mesh buffers",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "earcut": "^3.0.1" }
+}

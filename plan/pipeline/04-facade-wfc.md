@@ -9,9 +9,9 @@ Walls are unrolled into strips of cells.
   offices). Walls shorter than 1.2 m become one narrow cell that only accepts
   blank tiles.
 - Rows: one per level. Row kinds: `ground`, `upper`, `top`.
-- Walls of one ring are chained in order, so the right neighbour of the last
-  bay on wall 3 is the first bay of wall 4 (a corner link). The ring closes
-  on itself.
+- Walls are solved in one pass but are not linked across corners yet: each
+  wall is its own grid. Building-wide consistency comes from the facade
+  variant (see below), not from corner links.
 - Gable areas are not part of the grid; they get at most one attic piece each.
 
 ## Tiles
@@ -46,6 +46,16 @@ controlled:
   continue to the corner.
 - Corner links use a relaxed table (a pack can say corners accept anything).
 
+## Variants
+
+A type style may define building-wide variants (for example window styles
+`framed`, `plain`, `modern`, or office facades `punched`, `band`, `curtain`).
+One is rolled per plot in resolve; tiles naming another variant are removed
+before solving. This keeps one building from mixing window styles.
+
+Tiles with role door, garage, shop, shopdoor or dock are never placed by the
+solver; only the rules in step 2 place them.
+
 ## Solve order
 
 1. **Hard constraints.** Blocked cells keep only `needsOpen: false` tiles.
@@ -66,8 +76,8 @@ controlled:
 
 ## Implementation notes
 
-- Options per cell are a bitmask (packs are limited to 64 tiles: two 32-bit
-  words). Compatibility tables are precomputed per pack and cached.
+- Options per cell are a 32-bit mask, so a building type can use at most 32
+  tiles (after variant filtering there are usually under ten). Compatibility tables are precomputed per pack and cached.
 - The grid is small (a house has 30 – 80 cells), so the solve is cheap.
 - Minimum window count: if a free wall ends up with no window at all and the
   type expects some, the weights for blank are halved and the wall is solved

@@ -2,12 +2,12 @@
 
 Status legend: [ ] open, [~] in progress, [x] done.
 
-1. [ ] **Skeleton.** Workspace, core types, rng, mesh builder, resolve,
-   massing with flat / gabled / skillion / pyramidal roofs, three adapter,
-   minimal studio.
+1. [~] **Skeleton.** Workspace, core types, rng, mesh builder, resolve,
+   massing with flat / gabled / skillion / pyramidal roofs, three adapter
+   (done); minimal studio (in progress).
 2. [ ] **Roofs.** Straight skeleton, hipped and gabled on arbitrary
    footprints, courtyards, multi-part buildings.
-3. [ ] **Facades.** Context stage, facade solver, pieces, German residential
+3. [x] **Facades.** Context stage, facade solver, pieces, German residential
    pack, garages and sheds with plot-consistent colours.
 4. [ ] **OSM.** Adapter, area viewer with workers and tile merging.
 5. [ ] **Eras and regions.** Modernity across the German pack including

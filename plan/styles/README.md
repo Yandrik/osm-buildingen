@@ -36,7 +36,7 @@ building. Glass is one colour per pack with a slight per-building tint.
 
 ## Validation
 
-`registerStylePack` checks: unique tile ids, at most 64 tiles per type, every
+`registerStylePack` checks: unique tile ids, at most 32 tiles per type, every
 socket used is in the table, every type has at least one blank tile and one
 tile that fits blocked cells, weights are finite and non-negative.
 
