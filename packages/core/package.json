@@ -2,6 +2,7 @@
   "name": "@osm-buildingen/core",
   "version": "0.1.0",
   "description": "Low-poly procedural building generator: footprint + attributes -> mesh buffers",
+  "license": "MIT",
   "type": "module",
   "sideEffects": ["./src/index.ts"],
   "main": "./src/index.ts",

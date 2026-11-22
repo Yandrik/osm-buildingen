@@ -2,6 +2,7 @@
   "name": "@osm-buildingen/vector-tiles",
   "version": "0.1.0",
   "description": "Vector tile adapter for @osm-buildingen/core: OpenMapTiles-schema MVT -> BuildingInput[]",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",

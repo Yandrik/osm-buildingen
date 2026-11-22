@@ -58,3 +58,7 @@ pnpm exec tsx tools/sheet.ts renders   # sample sheets as PNG, no GPU needed
 The design lives in [`plan/`](plan/README.md); working rules are in `CLAUDE.md`.
 
 Map data in `packages/osm/test/fixtures` is © OpenStreetMap contributors (ODbL).
+
+## License
+
+MIT, see [LICENSE](LICENSE).

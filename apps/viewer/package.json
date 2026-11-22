@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Browser app that generates all buildings of an OpenStreetMap area, for debugging and measuring",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -2,6 +2,7 @@
   "name": "@osm-buildingen/osm",
   "version": "0.1.0",
   "description": "OpenStreetMap adapter for @osm-buildingen/core: OSM data -> BuildingInput[]",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",

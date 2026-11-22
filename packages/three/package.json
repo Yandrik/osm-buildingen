@@ -2,6 +2,7 @@
   "name": "@osm-buildingen/three",
   "version": "0.1.0",
   "description": "three.js adapter for @osm-buildingen/core",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
