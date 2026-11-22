@@ -12,6 +12,8 @@ createBuildingMaterial(options?): THREE.Material               // vertex colours
 - Colours are a normalised `Uint8` attribute.
 - The default material is `MeshLambertMaterial` with `vertexColors`; normals
   are already flat, so no `flatShading` recomputation is needed.
+- The worker returns per-building generation times (`times`) next to the
+  meshes, and the pool exposes its `size`.
 - Worker helper: `createGeneratorPool(size)` returns
   `generate(inputs): Promise<BuildingMesh[]>` and handles transfer. The worker
   file is a separate entry point so bundlers can pick it up.

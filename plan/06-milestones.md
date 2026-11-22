@@ -9,8 +9,8 @@ Status legend: [ ] open, [~] in progress, [x] done.
    footprints, courtyards, multi-part buildings.
 3. [x] **Facades.** Context stage, facade solver, pieces, German residential
    pack, garages and sheds with plot-consistent colours.
-4. [~] **OSM.** Adapter (done), area viewer with workers and tile merging
-   (open), OSM import in the studio (open).
+4. [x] **OSM.** Adapter, area viewer with workers and tile merging, OSM
+   import in the studio.
 5. [x] **Eras and regions.** Modernity across the German pack including
    timber frame; US suburban pack.
 6. [~] **More types.** Townhouse / store, office, skyscraper, industrial,

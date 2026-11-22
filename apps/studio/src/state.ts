@@ -70,6 +70,18 @@ export interface UiState {
   wireframe: boolean;
   /** Draw neighbours as grey blocks in the 3D view. */
   showContext: boolean;
+  /** Where the current input was imported from; cleared when the footprint is edited. */
+  source: InputSource | null;
+}
+
+/** An imported input's origin, shown as a chip in the toolbar. */
+export interface InputSource {
+  osmType: 'way' | 'relation';
+  osmId: number;
+  /** Outer ring of a multipolygon with several outers (0 for ways). */
+  ring: number;
+  label: string;
+  url: string;
 }
 
 export interface StudioState {
@@ -83,6 +95,7 @@ export const DEFAULT_UI: UiState = {
   layout: 'split',
   wireframe: false,
   showContext: true,
+  source: null,
 };
 
 /** Result of the latest generation. `mesh` is the last good one; `error` is set when the latest input failed. */
@@ -176,6 +189,24 @@ function isPolygon(v: unknown): v is Polygon {
   return v.holes === undefined || (Array.isArray(v.holes) && v.holes.every(isRing));
 }
 
+const ROAD_KINDS: readonly unknown[] = ['road', 'path', 'rail'];
+
+/** First optional field with the wrong type, as an error message; null when all are fine. */
+function badFields(
+  o: Record<string, unknown>,
+  numbers: readonly string[],
+  booleans: readonly string[],
+): string | null {
+  for (const k of numbers) {
+    const v = o[k];
+    if (v !== undefined && (typeof v !== 'number' || !Number.isFinite(v))) return `${k} must be a number.`;
+  }
+  for (const k of booleans) {
+    if (o[k] !== undefined && typeof o[k] !== 'boolean') return `${k} must be true or false.`;
+  }
+  return null;
+}
+
 /**
  * Checks the shape of a parsed JSON value well enough that the UI cannot crash on it.
  * Geometry problems (too few points, zero area) are left to the generator, which reports them.
@@ -201,18 +232,53 @@ export function parseInput(value: unknown): { input: BuildingInput } | { error: 
       return { error: `Unknown roof shape ${JSON.stringify(shape)}.` };
     }
   }
+  if (value.parts !== undefined) {
+    if (!Array.isArray(value.parts) || !value.parts.every((p) => isObject(p) && isPolygon(p.footprint))) {
+      return {
+        error: 'parts must be [{ footprint, height?, minHeight?, levels?, minLevel?, roof?, colours? }].',
+      };
+    }
+    for (const [i, p] of (value.parts as Record<string, unknown>[]).entries()) {
+      const bad = badFields(p, ['height', 'minHeight', 'levels', 'minLevel'], []);
+      if (bad) return { error: `parts[${i}].${bad}` };
+      if (p.roof !== undefined && !isObject(p.roof)) return { error: `parts[${i}].roof must be an object.` };
+    }
+  }
   if (value.neighbours !== undefined) {
     if (
       !Array.isArray(value.neighbours) ||
       !value.neighbours.every((n) => isObject(n) && isPolygon(n.footprint))
     ) {
-      return { error: 'neighbours must be [{ footprint, height?, sameGroup? }].' };
+      return { error: 'neighbours must be [{ footprint, height?, minHeight?, sameGroup? }].' };
+    }
+    for (const [i, n] of (value.neighbours as Record<string, unknown>[]).entries()) {
+      const bad = badFields(n, ['height', 'minHeight'], ['sameGroup']);
+      if (bad) return { error: `neighbours[${i}].${bad}` };
     }
   }
   if (value.roads !== undefined) {
     if (!Array.isArray(value.roads) || !value.roads.every((r) => isObject(r) && isRing(r.line))) {
       return { error: 'roads must be [{ line: [x, y][], width?, kind?, passage? }].' };
     }
+    for (const [i, r] of (value.roads as Record<string, unknown>[]).entries()) {
+      const bad = badFields(r, ['width'], ['passage']);
+      if (bad) return { error: `roads[${i}].${bad}` };
+      if (r.kind !== undefined && !ROAD_KINDS.includes(r.kind)) {
+        return { error: `roads[${i}].kind must be one of ${ROAD_KINDS.join(', ')}.` };
+      }
+    }
+  }
+  const bad = badFields(
+    value,
+    ['height', 'levels', 'minHeight', 'year', 'shopProbability', 'baseElevation'],
+    ['hasAddress', 'shop', 'entrance', 'debug'],
+  );
+  if (bad) return { error: bad };
+  if (value.groupKey !== undefined && typeof value.groupKey !== 'string') {
+    return { error: 'groupKey must be a string.' };
+  }
+  if (value.detail !== undefined && value.detail !== 'massing' && value.detail !== 'full') {
+    return { error: "detail must be 'massing' or 'full'." };
   }
   // The checks above cover everything the studio reads structurally; other fields pass through.
   return { input: value as unknown as BuildingInput };

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>osm-buildingen viewer</title>
+  </head>
+  <body>
+    <header id="toolbar">
+      <strong class="brand">osm-buildingen viewer</strong>
+      <span class="sep"></span>
+      <span id="progress" class="muted">No data loaded.</span>
+      <span class="spacer"></span>
+      <span id="area-info" class="muted"></span>
+    </header>
+    <main id="layout">
+      <aside id="controls" class="panel"></aside>
+      <section id="view">
+        <div id="drop-hint" hidden>Drop an .osm or Overpass .json file</div>
+        <div id="progress-bar"><div></div></div>
+      </section>
+      <aside id="side" class="panel">
+        <div id="inspector" hidden></div>
+        <details id="stats-box" open>
+          <summary>Stats</summary>
+          <div id="stats"></div>
+        </details>
+      </aside>
+    </main>
+    <div id="toast"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

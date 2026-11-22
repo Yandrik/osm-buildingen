@@ -180,6 +180,7 @@ export function createParams(
   const addrF = field('hasAddress');
   const shopF = field('shop');
   const shopPF = field('shopProbability');
+  const entranceF = field('entrance');
   const groupF = field('groupKey');
   const detailF = field('detail');
   const baseF = field('baseElevation');
@@ -201,6 +202,8 @@ export function createParams(
         boolRow('has address', addrF.get, addrF.set, null),
         boolRow('shop', shopF.get, shopF.set, (s) => (s.shop ? 'yes' : 'no')),
         numberRow('shop prob.', shopPF.get, shopPF.set, null, { step: 0.05, min: 0, max: 1 }),
+        boolRow('entrance', entranceF.get, entranceF.set, null),
+        partsRow(),
       ],
     ],
     [
@@ -244,11 +247,33 @@ export function createParams(
     [
       'Output',
       [
-        selectRow('detail', ['full', 'massing'] as const, detailF.get, detailF.set, null),
+        selectRow('detail', ['full', 'massing'] as const, detailF.get, detailF.set, () => 'auto = full'),
         numberRow('base elev.', baseF.get, baseF.set, null, { step: 0.5 }),
       ],
     ],
   ];
+
+  /** Parts are imported, not edited: show how many and allow dropping them to see the outline alone. */
+  function partsRow(): Row {
+    const count = h('span', {});
+    const remove = h(
+      'button',
+      {
+        title: 'Drop the parts so the outline alone is built',
+        on: { click: () => edit((i) => patchInput(i, { parts: undefined })) },
+      },
+      'remove parts',
+    );
+    const el = h('div', { class: 'row parts-row' }, h('label', {}, 'parts'), count, remove);
+    return {
+      el,
+      sync(i) {
+        const n = i.parts?.length ?? 0;
+        el.hidden = n === 0;
+        count.textContent = `${n} part${n === 1 ? '' : 's'} (read-only)`;
+      },
+    };
+  }
 
   function modernityRow(): Row {
     const range = h('input', { attrs: { type: 'range', min: 0, max: 1, step: 0.01 } });

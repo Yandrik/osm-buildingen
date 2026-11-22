@@ -13,11 +13,15 @@ export interface GenerateResult {
   errors: (string | null)[];
   /** Milliseconds of generation time inside the worker. */
   time: number;
+  /** Milliseconds per building, same order as `meshes`. */
+  times: Float32Array;
 }
 
 export interface GeneratorPool {
   /** Generates a batch (for example one map tile) on the least busy worker. */
   generate(inputs: BuildingInput[]): Promise<GenerateResult>;
+  /** Number of workers. */
+  readonly size: number;
   dispose(): void;
 }
 
@@ -45,7 +49,12 @@ export function createGeneratorPool(options: GeneratorPoolOptions): GeneratorPoo
       if (!job) return;
       pending.delete(event.data.id);
       entry.busy--;
-      job.resolve({ meshes: event.data.meshes, errors: event.data.errors, time: event.data.time });
+      job.resolve({
+        meshes: event.data.meshes,
+        errors: event.data.errors,
+        time: event.data.time,
+        times: event.data.times,
+      });
     };
     entry.worker.onerror = (event: ErrorEvent): void => {
       for (const [id, job] of pending) {
@@ -58,6 +67,7 @@ export function createGeneratorPool(options: GeneratorPoolOptions): GeneratorPoo
   });
 
   return {
+    size,
     generate(inputs) {
       return new Promise((resolve, reject) => {
         let slot = 0;

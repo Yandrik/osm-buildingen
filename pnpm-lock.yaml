@@ -29,6 +29,9 @@ importers:
       '@osm-buildingen/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@osm-buildingen/osm':
+        specifier: workspace:*
+        version: link:../../packages/osm
       '@osm-buildingen/three':
         specifier: workspace:*
         version: link:../../packages/three
@@ -45,6 +48,37 @@ importers:
       vite:
         specifier: ^5.4.21
         version: 5.4.21(@types/node@26.6.6)
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@26.6.6)
+
+  apps/viewer:
+    dependencies:
+      '@osm-buildingen/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@osm-buildingen/osm':
+        specifier: workspace:*
+        version: link:../../packages/osm
+      '@osm-buildingen/three':
+        specifier: workspace:*
+        version: link:../../packages/three
+      three:
+        specifier: ^0.170.0
+        version: 0.170.0
+    devDependencies:
+      '@types/three':
+        specifier: ^0.170.0
+        version: 0.170.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vite:
+        specifier: ^5.4.21
+        version: 5.4.21(@types/node@26.6.6)
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@26.6.6)
 
   packages/core:
     dependencies:

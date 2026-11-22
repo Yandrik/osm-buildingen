@@ -10,7 +10,7 @@ import {
 } from '@osm-buildingen/core';
 import { byId, h } from './dom';
 import { createInspector } from './inspector';
-import { OSM_IMPORT_AVAILABLE, importFromOsm } from './osm-import';
+import { createOsmDialog } from './osm-dialog';
 import { createParams } from './params';
 import { createPlanEditor } from './plan-editor';
 import { PRESETS, applyGeometry, defaultInput, randomFootprint, randomSeed } from './presets';
@@ -31,6 +31,7 @@ import {
   DEFAULT_UI,
   EMPTY_GENERATION,
   type GenerationState,
+  type InputSource,
   type StudioState,
   createStore,
 } from './state';
@@ -69,6 +70,8 @@ async function initialInput(): Promise<BuildingInput> {
     if (fromHash) {
       // Drop the hash so a reload after editing restores the edits, not the link.
       history.replaceState(null, '', window.location.pathname + window.location.search);
+      // Store it now: with the hash gone, a reload before the first edit would bring back the old input.
+      storeInput(fromHash);
       return fromHash;
     }
   } catch (e) {
@@ -124,6 +127,7 @@ async function main(): Promise<void> {
           generateBuilding({
             footprint: n.footprint,
             height: n.height ?? 6,
+            ...(n.minHeight !== undefined && n.minHeight < (n.height ?? 6) ? { minHeight: n.minHeight } : {}),
             roof: { shape: 'flat' },
             detail: 'massing',
             style: input.style,
@@ -152,6 +156,15 @@ async function main(): Promise<void> {
       save();
     }
     if (next.input !== prev.input || next.ui.showContext !== prev.ui.showContext) updateContext();
+    if (next.ui.source !== prev.ui.source) renderSourceChip(next.ui.source);
+    // The chip names where the outline came from; once the outline is edited it no longer does.
+    if (
+      next.ui.source &&
+      next.ui.source === prev.ui.source &&
+      next.input.footprint !== prev.input.footprint
+    ) {
+      queueMicrotask(() => store.update((s) => ({ ...s, ui: { ...s.ui, source: null } })));
+    }
     if (next.ui.wireframe !== prev.ui.wireframe) view.setWireframe(next.ui.wireframe);
     if (next.ui.layout !== prev.ui.layout) applyLayout(next.ui.layout);
   });
@@ -161,8 +174,8 @@ async function main(): Promise<void> {
 
   // --- toolbar ---
 
-  const loadInput = (input: BuildingInput, fit = true): void => {
-    store.update((s) => ({ input, ui: { ...s.ui, selection: null, tool: 'select' } }));
+  const loadInput = (input: BuildingInput, fit = true, source: InputSource | null = null): void => {
+    store.update((s) => ({ input, ui: { ...s.ui, selection: null, tool: 'select', source } }));
     if (fit) {
       requestAnimationFrame(() => {
         plan.fit();
@@ -200,24 +213,29 @@ async function main(): Promise<void> {
     'Random footprint',
   );
 
+  const osmDialog = createOsmDialog({
+    getStyle: () => store.get().input.style,
+    onLoad: (input, source) => {
+      loadInput(input, true, source);
+      toast(`Loaded ${source.label}`);
+    },
+  });
   const osmButton = h(
     'button',
-    {
-      title: OSM_IMPORT_AVAILABLE
-        ? 'Import a building from OpenStreetMap'
-        : 'available once the OSM adapter lands',
-      attrs: { disabled: !OSM_IMPORT_AVAILABLE },
-      on: {
-        click: () => {
-          importFromOsm().then(
-            (input) => loadInput(input),
-            (e) => showBanner(errorText(e)),
-          );
-        },
-      },
-    },
+    { title: 'Import a building from OpenStreetMap', on: { click: () => osmDialog.open() } },
     'From OSM…',
   );
+  const sourceChip = h('a', {
+    class: 'source-chip',
+    attrs: { target: '_blank', rel: 'noopener', hidden: true },
+  });
+  function renderSourceChip(source: InputSource | null): void {
+    sourceChip.hidden = source === null;
+    if (!source) return;
+    sourceChip.href = source.url;
+    sourceChip.textContent = `from ${source.osmType} ${source.osmId}${source.ring ? ` #${source.ring}` : ''} ↗`;
+    sourceChip.title = `${source.label} — open on openstreetmap.org`;
+  }
 
   const layoutButtons = (['split', '3d', 'plan'] as const).map((layout) =>
     h(
@@ -270,6 +288,7 @@ async function main(): Promise<void> {
     presetSelect,
     randomButton,
     osmButton,
+    sourceChip,
     h('span', { class: 'sep' }),
     h('span', { class: 'segmented' }, ...layoutButtons),
     h('button', { title: 'Frame the building in 3D', on: { click: () => view.fit() } }, 'Fit 3D'),

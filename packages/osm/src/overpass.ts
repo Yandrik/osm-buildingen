@@ -79,7 +79,7 @@ export async function fetchOverpass(bbox: LatLonBBox, options: FetchOverpassOpti
         true,
       );
     }
-    if (status === 504 || status === 503) {
+    if (status === 504 || status === 503 || status === 502) {
       throw new OverpassError(
         `Overpass server is busy or timed out (${status}). Try again later or use a smaller area.`,
         status,

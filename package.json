@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@10.14.0",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run && pnpm -r --if-present test",
     "test:watch": "vitest",
     "typecheck": "tsc -b && pnpm -r --if-present typecheck",
     "lint": "biome check .",

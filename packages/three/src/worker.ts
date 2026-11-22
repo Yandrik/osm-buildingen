@@ -17,6 +17,8 @@ export interface WorkerResponse {
   errors: (string | null)[];
   /** Milliseconds spent generating. */
   time: number;
+  /** Milliseconds per building, same order as `meshes`. */
+  times: Float32Array;
 }
 
 self.onmessage = (event: MessageEvent<WorkerRequest>): void => {
@@ -25,7 +27,9 @@ self.onmessage = (event: MessageEvent<WorkerRequest>): void => {
   const errors: (string | null)[] = [];
   const transfer: Transferable[] = [];
   const start = performance.now();
-  for (const input of inputs) {
+  const times = new Float32Array(inputs.length);
+  inputs.forEach((input, index) => {
+    const t0 = performance.now();
     try {
       const mesh = generateBuilding(input);
       meshes.push(mesh);
@@ -35,7 +39,9 @@ self.onmessage = (event: MessageEvent<WorkerRequest>): void => {
       meshes.push(null);
       errors.push(error instanceof Error ? error.message : String(error));
     }
-  }
-  const response: WorkerResponse = { id, meshes, errors, time: performance.now() - start };
+    times[index] = performance.now() - t0;
+  });
+  const response: WorkerResponse = { id, meshes, errors, time: performance.now() - start, times };
+  transfer.push(times.buffer);
   self.postMessage(response, transfer);
 };

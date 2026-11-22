@@ -6,7 +6,7 @@
  * (or select it and press Delete) to remove it; drag inside a polygon or Shift-drag any
  * edge to move the whole object; drag empty space to pan; wheel to zoom.
  */
-import type { BuildingInput, NeighbourInput, RoadInput, Vec2 } from '@osm-buildingen/core';
+import type { BuildingInput, NeighbourInput, PartInput, RoadInput, Vec2 } from '@osm-buildingen/core';
 import { entranceInfo } from './analysis';
 import { clear, cssVar, fmt, h } from './dom';
 import {
@@ -22,6 +22,20 @@ import {
   setRing,
   setRoad,
 } from './state';
+
+/** "12 m", "4 L", "3–12 m": what a part's own fields say about its height. */
+function partLabel(p: PartInput): string {
+  const roof = p.roof?.shape && p.roof.shape !== 'flat' ? ` ${p.roof.shape}` : '';
+  if (p.height !== undefined) {
+    const from = p.minHeight ? `${fmt(p.minHeight, 1)}–` : '';
+    return `${from}${fmt(p.height, 1)} m${roof}`;
+  }
+  if (p.levels !== undefined) {
+    const from = p.minLevel ? `${p.minLevel}–` : '';
+    return `${from}${p.levels} L${roof}`;
+  }
+  return roof.trim();
+}
 
 export interface PlanEditor {
   fit(): void;
@@ -119,6 +133,7 @@ interface PlanTheme {
   shared: string;
   street: string;
   door: string;
+  part: string;
 }
 
 function readTheme(): PlanTheme {
@@ -138,6 +153,7 @@ function readTheme(): PlanTheme {
     shared: v('--plan-shared', '#7b1010'),
     street: v('--plan-street', '#1e9e57'),
     door: v('--plan-door', '#e07a00'),
+    part: v('--plan-part', '#8a4fd1'),
   };
 }
 
@@ -521,6 +537,7 @@ export function createPlanEditor(
       };
       props.append(
         numberField('height', n.height, 'unknown', (v) => update({ height: v })),
+        numberField('min height', n.minHeight, '0', (v) => update({ minHeight: v })),
         checkField('same plot', n.sameGroup === true, (v) => update({ sameGroup: v })),
       );
     } else if (t.kind === 'road') {
@@ -751,7 +768,8 @@ export function createPlanEditor(
         ctx.fillStyle = theme.neighbour;
         ctx.font = '11px system-ui, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(`${fmt(n.height, 1)} m`, cx, cy);
+        const from = n.minHeight ? `${fmt(n.minHeight, 1)}–` : '';
+        ctx.fillText(`${from}${fmt(n.height, 1)} m`, cx, cy);
         ctx.textAlign = 'start';
       }
     });
@@ -776,6 +794,7 @@ export function createPlanEditor(
       ctx.stroke();
     }
 
+    drawParts(inp);
     drawContext();
 
     for (const t of targets(inp)) {
@@ -797,6 +816,42 @@ export function createPlanEditor(
       ctx.setLineDash([]);
       drawVertices(draft, theme.select, null);
     }
+  }
+
+  /** Parts are read-only: dashed outlines with their height or levels, not hit-tested. */
+  function drawParts(inp: BuildingInput): void {
+    const parts = inp.parts ?? [];
+    if (!parts.length) return;
+    ctx.strokeStyle = theme.part;
+    ctx.lineWidth = 1.25;
+    ctx.setLineDash([5, 3]);
+    for (const p of parts) {
+      for (const ring of [p.footprint.outer, ...(p.footprint.holes ?? [])]) {
+        path(ring, true);
+        ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const p of parts) {
+      const label = partLabel(p);
+      if (!label) continue;
+      const [cx, cy] = toScreen(centroid(p.footprint.outer));
+      const w = ctx.measureText(label).width + 4;
+      // Many small parts (a cathedral has dozens): only label those the text fits into.
+      const xs = p.footprint.outer.map((q) => q[0]);
+      if (w > (Math.max(...xs) - Math.min(...xs)) * scale) continue;
+      ctx.globalAlpha = 0.75;
+      ctx.fillStyle = theme.bg;
+      ctx.fillRect(cx - w / 2, cy - 6, w, 12);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = theme.part;
+      ctx.fillText(label, cx, cy);
+    }
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
   }
 
   function centroid(ring: readonly Vec2[]): Vec2 {

@@ -194,6 +194,8 @@ export function randomFootprint(seed: string): PresetGeometry {
 export function applyGeometry(input: BuildingInput, g: PresetGeometry): BuildingInput {
   return patchInput(input, {
     footprint: g.footprint,
+    // Parts belong to the old outline; with parts present the outline is not built at all.
+    parts: undefined,
     neighbours: g.neighbours,
     roads: g.roads,
     type: g.type,

@@ -27,6 +27,11 @@
   --plan-shared: #7b1010;
   --plan-street: #1e9e57;
   --plan-door: #e07a00;
+  --plan-part: #8a4fd1;
+  --picker-road: #c3c7ce;
+  --picker-path: #b49c74;
+  --picker-rail: #6d6f75;
+  --picker-stroke: rgba(30, 30, 30, 0.5);
   --blocked-cell: #f3d3d3;
   --entrance-cell: #ffe2bd;
   --street-row: #e3f5ea;
@@ -65,6 +70,11 @@
     --plan-shared: #c43a3a;
     --plan-street: #36c977;
     --plan-door: #ff9a2e;
+    --plan-part: #b98cff;
+    --picker-road: #4a4f57;
+    --picker-path: #7d6b4d;
+    --picker-rail: #9a9ca3;
+    --picker-stroke: rgba(0, 0, 0, 0.6);
     --blocked-cell: #5a2a2a;
     --entrance-cell: #5a4020;
     --street-row: #1d3a29;
@@ -73,6 +83,11 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Rules with display: grid / flex would otherwise override the attribute. */
+[hidden] {
+  display: none !important;
 }
 
 html,
@@ -108,6 +123,12 @@ button {
 
 button:hover:not(:disabled) {
   background: var(--button-hover);
+}
+
+button.active:hover:not(:disabled),
+button.primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.08);
 }
 
 button:disabled {
@@ -551,4 +572,375 @@ dialog .buttons {
 
 #toast.visible {
   opacity: 1;
+}
+
+/* --- source chip (toolbar) --- */
+
+.source-chip {
+  font-size: 11px;
+  color: var(--fg);
+  background: var(--button);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 8px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.source-chip:hover {
+  border-color: var(--accent);
+}
+
+#params .parts-row {
+  grid-template-columns: 78px minmax(0, 1fr) auto;
+}
+
+#params .parts-row > span {
+  font-size: 12px;
+}
+
+/* --- OSM dialog --- */
+
+dialog.osm-dialog {
+  width: min(1240px, 96vw);
+  height: min(820px, 92vh);
+  padding: 0;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+dialog.osm-dialog[open] {
+  display: flex;
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.osm-dialog > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.osm-dialog > header h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.osm-dialog .close {
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 8px;
+}
+
+.osm-area-label {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.osm-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr) 280px;
+}
+
+.osm-side,
+.osm-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.osm-side {
+  border-right: 1px solid var(--border);
+}
+
+.osm-summary {
+  border-left: 1px solid var(--border);
+}
+
+.osm-summary-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.osm-summary-body h4 {
+  margin: 0 0 2px;
+  font-size: 14px;
+}
+
+.osm-summary-body h5 {
+  margin: 10px 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.osm-summary-body a,
+.osm-dialog a {
+  color: var(--accent);
+}
+
+.osm-summary-body table.kv {
+  margin-top: 6px;
+}
+
+.osm-summary-body table.tags td {
+  word-break: break-word;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.osm-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.osm-members li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.osm-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.osm-panel p {
+  margin: 0;
+}
+
+.osm-panel .field {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.osm-panel .field > span:first-child {
+  color: var(--muted);
+}
+
+.osm-panel .inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.osm-panel .inline input[type="text"] {
+  flex: 1;
+}
+
+.osm-panel input[type="number"] {
+  width: 72px;
+}
+
+.osm-panel .buttons,
+.osm-summary .buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.osm-place-hint {
+  margin-left: 70px;
+}
+
+.small {
+  font-size: 11px;
+}
+
+.osm-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 18px 10px;
+  border: 1.5px dashed var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.osm-drop.over,
+.osm-drop:hover {
+  border-color: var(--accent);
+}
+
+.osm-drop input {
+  display: none;
+}
+
+.osm-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.osm-status[data-kind="error"] span {
+  color: var(--danger-fg);
+}
+
+.osm-status[data-kind="busy"] span::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border: 2px solid var(--accent);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: -1px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.osm-search {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.osm-search input {
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+
+.osm-list {
+  flex: 1;
+  min-height: 60px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.osm-list li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.osm-list li:hover {
+  background: var(--button);
+}
+
+.osm-list li.active {
+  background: var(--button-hover);
+  outline: 1px solid var(--accent);
+}
+
+.osm-list .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.osm-list .dot,
+.osm-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.osm-centre {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.osm-map {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.osm-map canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  cursor: grab;
+}
+
+.picker-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 12px;
+  max-width: 300px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.picker-hint {
+  position: absolute;
+  left: 8px;
+  top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.osm-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.osm-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.osm-legend i.hatched {
+  background: repeating-linear-gradient(-45deg, var(--muted) 0 1.5px, transparent 1.5px 4px);
+  border: 1px solid var(--muted);
 }

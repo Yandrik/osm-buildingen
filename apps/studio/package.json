@@ -8,16 +8,19 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@osm-buildingen/core": "workspace:*",
+    "@osm-buildingen/osm": "workspace:*",
     "@osm-buildingen/three": "workspace:*",
     "three": "^0.170.0"
   },
   "devDependencies": {
     "@types/three": "^0.170.0",
     "typescript": "^5.7.2",
-    "vite": "^5.4.21"
+    "vite": "^5.4.21",
+    "vitest": "^2.1.8"
   }
 }
