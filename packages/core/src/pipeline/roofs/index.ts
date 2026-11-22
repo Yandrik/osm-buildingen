@@ -1,7 +1,8 @@
+import { straightSkeleton } from '../../geom/skeleton';
 import type { Vec2 } from '../../geom/vec2';
 import type { FootprintMetrics, ResolvedSpec, RoofGeometry, RoofShape, WallSegment } from '../../types';
 import { buildFlat } from './flat';
-import { buildGabled } from './gabled';
+import { NEAR_RECTANGLE, buildGabled, buildGambrel, buildHalfHipped, buildMansard } from './gabled';
 import { buildHipped, canBuildHipped } from './hipped';
 import { buildPyramidal } from './pyramidal';
 import { buildSkillion } from './skillion';
@@ -24,18 +25,22 @@ export function supportedRoofShape(
   metrics: FootprintMetrics,
   hasHoles: boolean,
 ): RoofShape {
-  if (hasHoles) return 'flat';
+  if (hasHoles) {
+    // Around a courtyard only the skeleton roof works; everything pitched becomes hipped.
+    if (shape === 'flat' || shape === 'skillion') return 'flat';
+    return canBuildHipped(metrics) ? 'hipped' : 'flat';
+  }
   const aspect = metrics.box.halfWidth > 0 ? metrics.box.halfLength / metrics.box.halfWidth : 99;
   switch (shape) {
     case 'flat':
     case 'gabled':
     case 'skillion':
-      return shape;
     case 'half-hipped':
     case 'gambrel':
-      return 'gabled'; // not built yet
+      // The last two fall back to plain gabled when the footprint has no gable ends.
+      return shape;
     case 'mansard':
-      return supportedRoofShape('hipped', metrics, hasHoles); // not built yet
+      return canBuildHipped(metrics) ? 'mansard' : 'gabled';
     case 'pyramidal':
       return metrics.rectangularity > 0.75 && aspect < 1.5
         ? 'pyramidal'
@@ -45,22 +50,59 @@ export function supportedRoofShape(
   }
 }
 
+/**
+ * Half the width the roof rises over, i.e. what the pitch is multiplied with to get
+ * the roof height. For a rectangle that is half its width. A footprint with wings
+ * is roofed wing by wing, so it is half the width of the widest wing: the highest
+ * point of the straight skeleton. (The oriented box would give L and U shapes and
+ * courtyard blocks roofs two to three times too steep.)
+ */
+export function roofHalfSpan(
+  shape: RoofShape,
+  footprint: { outer: Vec2[]; holes: Vec2[][] },
+  metrics: FootprintMetrics,
+  across: boolean,
+): number {
+  const box = across ? metrics.box.halfLength : metrics.box.halfWidth;
+  const perWing = shape !== 'flat' && shape !== 'skillion' && shape !== 'pyramidal';
+  if (!perWing || across) return box;
+  if (footprint.holes.length === 0 && metrics.rectangularity > NEAR_RECTANGLE) return box;
+  const skeleton = straightSkeleton(footprint.outer, footprint.holes);
+  return skeleton ? Math.min(box, skeleton.maxTime) : box;
+}
+
 /** Stage 2b. Builds the roof for the resolved shape; falls back to flat if a builder gives up. */
 export function buildRoof(ctx: RoofContext): RoofGeometry {
   const { spec } = ctx;
+  const hasHoles = spec.footprint.holes.length > 0;
   let roof: RoofGeometry | null = null;
   switch (spec.roof.shape) {
     case 'gabled':
-      roof = buildGabled(ctx);
+      roof = hasHoles ? null : buildGabled(ctx);
       break;
     case 'skillion':
-      roof = buildSkillion(ctx);
+      roof = hasHoles ? null : buildSkillion(ctx);
       break;
     case 'pyramidal':
-      roof = buildPyramidal(ctx);
+      roof = hasHoles ? null : buildPyramidal(ctx);
       break;
     case 'hipped':
-      roof = buildHipped(ctx) ?? buildGabled(ctx);
+    case 'mansard':
+      roof = spec.roof.shape === 'mansard' && !hasHoles ? buildMansard(ctx) : null;
+      roof ??= buildHipped(ctx);
+      if (!roof && !hasHoles) {
+        spec.notes.push(`${spec.roof.shape} roof: straight skeleton failed, using gabled`);
+        roof = buildGabled(ctx);
+      }
+      break;
+    case 'half-hipped':
+    case 'gambrel':
+      if (hasHoles) break;
+      roof = spec.roof.shape === 'gambrel' ? buildGambrel(ctx) : buildHalfHipped(ctx);
+      if (!roof) {
+        spec.notes.push(`${spec.roof.shape} roof: no gable ends to work with, using gabled`);
+        roof = buildGabled(ctx);
+      }
       break;
     default:
       roof = null;

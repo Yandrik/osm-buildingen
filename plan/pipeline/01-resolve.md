@@ -54,13 +54,16 @@ Shape: given shape wins. Otherwise a weighted pick from the style pack for
 
 - gabled, half-hipped, gambrel need rectangularity > 0.6 or a working skeleton;
 - pyramidal needs an aspect ratio below 1.4;
-- holes force flat unless the skeleton supports them.
+- with holes, pitched shapes become hipped (skeleton with holes); flat and
+  skillion become flat.
 
 Garages default to flat (weight 0.8), sheds to skillion or gabled.
 
 Roof height: given, else `roof.levels × 3 m × 0.9`, else from the pitch in the
 style pack (for example 38–50° for old German houses, 15–30° for US suburban)
-times half the short side, capped at 9 m.
+times half the short side, capped at 9 m. For footprints that are not
+near-rectangles the "short side" is the widest wing: twice the highest point of
+the straight skeleton (see 02-massing-roofs.md).
 
 Ridge direction: along the long side unless `roof.ridge = 'across'` or
 `roof.direction` is given.

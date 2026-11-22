@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>osm-buildingen studio</title>
+  </head>
+  <body>
+    <header id="toolbar"></header>
+    <div id="banner" role="alert" hidden></div>
+    <main id="layout">
+      <aside id="params" class="panel"></aside>
+      <section id="centre" data-layout="split">
+        <div id="view3d"></div>
+        <div id="plan"></div>
+      </section>
+      <aside id="inspector" class="panel"></aside>
+    </main>
+    <dialog id="load-dialog">
+      <h3>Load input JSON</h3>
+      <textarea id="load-text" spellcheck="false" placeholder='{ "footprint": { "outer": [[0,0],[10,0],[10,8],[0,8]] }, "style": { "region": "de", "modernity": 0.5 }, "seed": 1 }'></textarea>
+      <p id="load-error" class="error"></p>
+      <div class="buttons">
+        <button id="load-cancel" type="button">Cancel</button>
+        <button id="load-ok" type="button" class="primary">Load</button>
+      </div>
+    </dialog>
+    <div id="toast"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

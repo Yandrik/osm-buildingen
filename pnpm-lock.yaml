@@ -24,6 +24,28 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@26.6.6)
 
+  apps/studio:
+    dependencies:
+      '@osm-buildingen/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@osm-buildingen/three':
+        specifier: workspace:*
+        version: link:../../packages/three
+      three:
+        specifier: ^0.170.0
+        version: 0.170.0
+    devDependencies:
+      '@types/three':
+        specifier: ^0.170.0
+        version: 0.170.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vite:
+        specifier: ^5.4.21
+        version: 5.4.21(@types/node@26.6.6)
+
   packages/core:
     dependencies:
       earcut:

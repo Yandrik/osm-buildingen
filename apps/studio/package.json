@@ -1,0 +1,23 @@
+{
+  "name": "@osm-buildingen/studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser app to design and debug one generated building",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@osm-buildingen/core": "workspace:*",
+    "@osm-buildingen/three": "workspace:*",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.170.0",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.21"
+  }
+}

@@ -16,7 +16,7 @@ import {
   type WallStyle,
 } from '../types';
 import { GENERATOR_VERSION } from '../version';
-import { supportedRoofShape } from './roofs';
+import { roofHalfSpan, supportedRoofShape } from './roofs';
 
 const DEG = Math.PI / 180;
 const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
@@ -144,7 +144,6 @@ export function resolve(input: BuildingInput): ResolvedSpec {
 
   const across = input.roof?.ridge === 'across';
   const ridgeAxis = across ? metrics.box.side : metrics.box.axis;
-  const halfSpan = across ? metrics.box.halfLength : metrics.box.halfWidth;
   let slopeDirection: Vec2 = root.fork('slope').chance(0.5)
     ? metrics.box.side
     : [-metrics.box.side[0], -metrics.box.side[1]];
@@ -164,7 +163,7 @@ export function resolve(input: BuildingInput): ResolvedSpec {
   else if (input.roof?.height !== undefined && input.roof.height > 0) roofHeight = input.roof.height;
   else if (input.roof?.levels !== undefined && input.roof.levels > 0)
     roofHeight = input.roof.levels * nominalLevel * 0.9;
-  else roofHeight = roofHeightFromPitch(shape, pitch, halfSpan);
+  else roofHeight = roofHeightFromPitch(shape, pitch, roofHalfSpan(shape, footprint, metrics, across));
   roofHeight = mm(roofHeight);
 
   let levels: number;

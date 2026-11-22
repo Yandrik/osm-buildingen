@@ -26,29 +26,125 @@ interface WallSegment {
 |---|---|---|
 | flat | cap polygon, optional parapet | yes, with holes |
 | skillion | one tilted plane along `direction` | yes |
-| gabled | ridge on the long axis of the oriented box; footprint split at the ridge; height falls off linearly with distance to the ridge | yes, exact for rectangles |
+| gabled | rectangle (or `ridge = across`): ridge on the axis of the oriented box, exact. Otherwise: skeleton with the wing ends held still, one ridge per wing | yes; single ridge on the box axis if fewer than two wing ends are found |
 | pyramidal | fan to an apex above the centroid | convex-ish |
-| hipped | straight skeleton | yes |
-| half-hipped | gabled with the gable tips clipped by small hips | rectangles first |
-| gambrel, mansard | two-pitch variants of gabled / hipped | rectangles first |
+| hipped | straight skeleton | yes, with holes |
+| half-hipped | skeleton; gable edges start to move at 60 % of the gable height, which hips the tip | yes; falls back to gabled without gable ends |
+| gambrel | gabled from the skeleton with a kinked height profile | as half-hipped |
+| mansard | hipped with a kinked height profile, no overhang | yes |
 
-Roof overhang (eaves sticking out 0.2–0.6 m) is a style parameter; it offsets
-the roof outline outward, except along blocked walls.
+All skeleton roofs come from one builder, `roofs/fromSkeleton.ts`. It works in
+"time" (the inward distance from the wall, which is what the skeleton returns) and
+turns time into height at the very end through a profile: a straight line for
+hipped and gabled, two segments for mansard and gambrel (faces are cut along the
+kink). The slope is scaled so the highest skeleton point is at `roof.height`.
+
+Roof overhang (eaves sticking out 0.2–0.6 m) is a style parameter. Every face is
+simply continued outward in its own plane, so the eave drops by overhang × slope.
+At a corner the hip or valley line is continued too. Where neighbouring walls have
+different overhangs (0 along blocked walls) both faces reach the hip line at the
+smaller overhang and the wider one gets a corner of its own. A wall in a notch
+narrower than the overhang gets none, and the tip at corners sharper than about
+45° is cut off. Overhangs of walls that face each other across a narrow gap may
+still overlap; that is not resolved.
+
+With a courtyard every pitched shape becomes hipped (a ring of roof with the ridge
+half-way between street and yard); hole edges have no overhang.
+
+Resolve derives the roof height from the pitch times half the span. For rectangles
+that span is the oriented box; for everything else that is roofed per wing it is
+the highest point of the skeleton (`roofHalfSpan`), otherwise L and U shapes and
+courtyard blocks would get roofs two to three times too steep.
 
 ## Straight skeleton
 
-Needed for hipped roofs on non-rectangular footprints and for clean gabled
-roofs on L, T and U shapes.
+`geom/skeleton.ts`, own implementation, no dependencies.
 
-- Own implementation in `geom/skeleton.ts` (wavefront with edge and split
-  events). Footprints are small, so O(n²) is fine.
-- Output: one roof face per footprint edge, as a 2D polygon plus a height
-  function (distance from the edge times the slope).
-- Gabled from skeleton: for edges marked as gable ends, the skeleton node is
-  pulled onto the edge midpoint so that face becomes vertical.
-- Checks after every run: faces cover the footprint, no overlaps, every face
-  touches its edge. On failure fall back: hipped -> gabled (oriented box) ->
-  flat. The fallback is recorded in `debug`.
+**Algorithm.** Wavefront propagation. The wavefront is a set of rings of moving
+vertices, each defined by its two edges, a start point and a velocity. Two events
+change it: an *edge event* (a wavefront edge shrinks to nothing, its ends merge)
+and a *split event* (a reflex vertex runs into another wavefront edge and splits
+the ring, or with holes joins two rings). After every event all upcoming events are
+recomputed from the current wavefront: O(n³) in total, 0.05–0.1 ms for typical
+footprints, and no event queue that can go stale. Every vertex leaves an arc
+behind; the arcs next to an edge, chained from one end of the edge to the other,
+are its face.
+
+**Degenerate input** is the normal case for buildings (parallel walls, equal wing
+widths: on a plus shape everything happens in one instant), so:
+
+- Simultaneous events are processed one at a time. Each step leaves a valid
+  wavefront that may contain zero-length edges; those collapse in the next steps.
+- Two antiparallel edges that become neighbours enclose a strip of zero width. The
+  vertex between them has no finite speed; it is resolved at once by walking along
+  the shorter edge, which leaves the ridge.
+- A reflex vertex that hits exactly the end of an edge hits a vertex. The ring is
+  pinched there directly instead of leaving a sliver whose fate depends on noise.
+- New vertices are put exactly onto their two wavefront lines, so tolerance errors
+  do not add up from event to event (a vertex between nearly parallel edges moves
+  at 10⁵ m per unit time and multiplies any such error).
+- Collinear walls work (the vertex between them moves straight inward). Points
+  closer than 0.01 mm are merged; the edge between them gets an empty face.
+
+**Waiting edges.** An edge can be given a `delay`: it stands still until then, so
+its face is vertical, a wall. Infinity gives a gable end (the face is the edge and
+the peak on it), a finite delay a half-hip. A waiting edge next to a parallel edge
+is not supported (it would need a new wavefront edge); the gable-end picking avoids
+that.
+
+**Output.** One face per input edge (outer ring, then holes): a counter-clockwise
+polygon starting with the edge, plus the time at every point. Nodes are shared by
+index between faces.
+
+**Checks.** Before returning, every face must be closed, counter-clockwise, simple
+and planar (time equals the distance from its edge), nodes must lie inside the
+polygon and the areas must add up. Because every arc is shared by exactly two
+faces, simple counter-clockwise faces are enough for a tiling. If a check fails
+the run is repeated with a larger tolerance and then on copies of the input moved
+by 0.02 mm and 0.1 mm; if all four attempts fail the function returns null. It
+never throws.
+
+**Measured** (seeded random footprints, see `skeleton.test.ts` and `roofs.test.ts`):
+no null in 20 000 each of rectilinear unions of 2–3 rectangles (free, on a grid,
+rotated), convex polygons, star-shaped polygons, and rectilinear or convex
+footprints with a rectangular courtyard. On the same families all five skeleton
+roof shapes were valid (planar faces, footprint covered exactly once, wall tops on
+the roof) with random overhang patterns, and none fell back to flat. The hard case is walls
+that are parallel only up to 10⁻⁵–10⁻⁸ m, where "at the same time" stops being
+decidable: there about 5 % need a retry and 0.1–0.3 % return null. OSM corner noise
+(millimetres to centimetres) is far from that band.
+
+**Limits.**
+
+- Simple polygons only. Self-intersections, a ring running back along itself and
+  holes touching the outer ring return null.
+- Holes are supported and tested with rectangular courtyards; holes of other
+  shapes have had less testing.
+- Near-degenerate input that is retried on a perturbed copy has node positions
+  that are off by up to about 0.1 mm.
+
+## Gable ends
+
+`pickGableEnds`: an edge is a wing end if its (plain) skeleton face is a triangle,
+both its corners turn inward by 30–150°, the walls on either side are within 25°
+of parallel, and it is at least 1 m long. Of two neighbouring candidates the
+shorter one wins, so not every edge can become a gable. For (near-)rectangles and
+`ridge = across` the ends are instead the walls across the ridge at the ends of
+the oriented box.
+
+The skeleton is then run again with those edges waiting. The wall under a gable
+gets its top from `RoofGeometry.heightAt` / `breaks` (peak of a full gable, the two
+ends of the level part of a half-hip, plus the kinks of a gambrel profile). Over
+the gable wall the roof runs out by the overhang along the ridge line.
+
+## Fallbacks
+
+Recorded in `spec.notes` (visible in `debug`):
+
+- hipped, mansard: skeleton fails -> gabled -> flat. With a courtyard: -> flat.
+- gabled on a non-rectangle: skeleton fails or fewer than two wing ends -> single
+  ridge on the box axis (the old "one big gable") -> flat.
+- half-hipped, gambrel: no gable ends or skeleton fails -> gabled.
 
 ## Multi-part buildings
 
@@ -58,4 +154,5 @@ overlap within 5 cm) and only the portion above the lower part is kept.
 ## Courtyards
 
 Hole rings produce inward-facing walls. Flat roofs handle holes directly;
-pitched roofs need the skeleton with holes, otherwise fall back to flat.
+pitched roofs are built as hipped from the skeleton with holes, and fall back to
+flat if that fails.
