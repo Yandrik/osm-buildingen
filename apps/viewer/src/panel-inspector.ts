@@ -1,18 +1,19 @@
 /**
- * Inspector for the selected building: OSM element and tags, the adapter's
+ * Inspector for the selected building: OSM element and tags (or the vector tile
+ * properties and hints), the adapter's
  * decision, the generator's resolved spec and notes (from one main-thread
  * `generateBuilding({ ...input, debug: true })`), the exact input as JSON, and a
  * link that opens it in the studio.
  */
 import type { BuildingInput, Palette, ResolvedSpec } from '@osm-buildingen/core';
-import type { BuildingMeta } from '@osm-buildingen/osm';
 import type { Inspection } from './analysis';
+import { type AreaMeta, isOsmMeta } from './area-build';
 import { type Child, append, clear, fmt, h, hex } from './dom';
 import { inputToJson } from './permalink';
 
 export interface InspectData {
   index: number;
-  meta: BuildingMeta;
+  meta: AreaMeta;
   input: BuildingInput;
   /** Error from the worker pool for this building, if generation failed there. */
   poolError: string | undefined;
@@ -40,7 +41,72 @@ const section = (title: string, ...children: Child[]): HTMLElement =>
 const kv = (rows: readonly [string, Child][]): HTMLElement =>
   h('table', { class: 'kv' }, ...rows.map(([k, v]) => h('tr', {}, h('th', {}, k), h('td', {}, v))));
 
-const osmUrl = (m: BuildingMeta): string => `https://www.openstreetmap.org/${m.osmType}/${m.osmId}`;
+function head(meta: AreaMeta): Child[] {
+  if (isOsmMeta(meta)) {
+    return [
+      h(
+        'a',
+        {
+          attrs: {
+            href: `https://www.openstreetmap.org/${meta.osmType}/${meta.osmId}`,
+            target: '_blank',
+            rel: 'noopener',
+          },
+        },
+        `${meta.osmType} ${meta.osmId}`,
+      ),
+      meta.ring > 0 ? h('span', { class: 'muted' }, ` ring ${meta.ring}`) : null,
+    ];
+  }
+  const { lat, lon } = meta.centroidLatLon;
+  // Tiles carry no usable OSM id; link the map at the building instead.
+  return [
+    h(
+      'a',
+      {
+        attrs: {
+          href: `https://www.openstreetmap.org/?mlat=${lat.toFixed(6)}&mlon=${lon.toFixed(6)}#map=19/${lat.toFixed(6)}/${lon.toFixed(6)}`,
+          target: '_blank',
+          rel: 'noopener',
+        },
+      },
+      `tile building ${meta.key}`,
+    ),
+  ];
+}
+
+const sortedRows = (record: Record<string, unknown>): [string, Child][] =>
+  Object.entries(record)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]): [string, Child] => [k, String(v)]);
+
+/** Source data: OSM tags, or tile properties plus what the adapter found around the footprint. */
+function sourceSection(meta: AreaMeta): HTMLElement {
+  if (isOsmMeta(meta)) return section('OSM tags', kv(sortedRows(meta.tags)));
+  const none = (list: readonly string[]): Child =>
+    list.length > 0 ? list.join(', ') : h('span', { class: 'muted' }, '–');
+  return section(
+    'Tile properties',
+    kv(sortedRows(meta.properties)),
+    kv([
+      ['height from', meta.heightSource],
+      ['house numbers', none(meta.housenumbers)],
+      ['POIs inside', none(meta.pois)],
+      ['landuse', meta.landuse ?? h('span', { class: 'muted' }, '–')],
+      ['tiles', meta.tiles.join(', ')],
+      [
+        'geometry',
+        `${meta.stitched ? 'stitched across tiles' : 'one tile'}${meta.truncated ? ', truncated at the loaded edge' : ''}`,
+      ],
+      [
+        'feature id',
+        meta.featureId !== undefined ? String(meta.featureId) : h('span', { class: 'muted' }, '–'),
+      ],
+    ]),
+  );
+}
+
+const partCount = (meta: AreaMeta): number => (isOsmMeta(meta) ? meta.partIds.length : meta.parts);
 
 function swatches(palette: Palette): HTMLElement {
   return h(
@@ -115,12 +181,7 @@ export function createInspector(root: HTMLElement, actions: InspectorActions): I
         h(
           'div',
           { class: 'inspector-head' },
-          h(
-            'a',
-            { attrs: { href: osmUrl(meta), target: '_blank', rel: 'noopener' } },
-            `${meta.osmType} ${meta.osmId}`,
-          ),
-          meta.ring > 0 ? h('span', { class: 'muted' }, ` ring ${meta.ring}`) : null,
+          ...head(meta),
           h('span', { class: 'spacer' }),
           h('button', { on: { click: () => actions.focus(data.index) }, title: 'Centre the camera' }, 'Zoom'),
           h('button', { on: { click: () => actions.close() }, title: 'Deselect (Esc)' }, '×'),
@@ -149,7 +210,7 @@ export function createInspector(root: HTMLElement, actions: InspectorActions): I
             ],
             ['area', `${fmt(meta.area, 1)} m²`],
             ['address', input.hasAddress ? 'yes' : 'no'],
-            ['parts', meta.partIds.length > 0 ? String(meta.partIds.length) : '–'],
+            ['parts', partCount(meta) > 0 ? String(partCount(meta)) : '–'],
             ['neighbours', String(input.neighbours?.length ?? 0)],
             ['roads', `${roads.length}${roads.some((r) => r.passage) ? ' (passage)' : ''}`],
             ['detail', `${data.level}${input.detail ? ` (input: ${input.detail})` : ''}`],
@@ -176,14 +237,7 @@ export function createInspector(root: HTMLElement, actions: InspectorActions): I
               ]),
             )
           : null,
-        section(
-          'OSM tags',
-          kv(
-            Object.entries(meta.tags)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([k, v]): [string, Child] => [k, v]),
-          ),
-        ),
+        sourceSection(meta),
         section(
           'BuildingInput',
           h(

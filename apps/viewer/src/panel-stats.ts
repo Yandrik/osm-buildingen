@@ -3,7 +3,6 @@
  * numbers (FPS, draw calls) are patched in place; the rest is rebuilt only when
  * it changed, so clicks on list entries are not lost to a re-render.
  */
-import type { BuildStats } from '@osm-buildingen/osm';
 import type { LoadSummary } from './data';
 import { type Child, clear, fmt, h } from './dom';
 import type { GenerationStats } from './generation';
@@ -21,7 +20,8 @@ export interface StatsData {
   load: LoadSummary | null;
   buildMs: number | null;
   buildWallMs: number | null;
-  buildStats: BuildStats | null;
+  /** Adapter skip / stitch counts as one line. */
+  skipped: string | null;
   buildings: number;
   roads: number;
   generation: GenerationStats | null;
@@ -70,25 +70,24 @@ export function createStats(root: HTMLElement, actions: StatsActions): StatsPane
     clear(body);
     const g = d.generation;
     const tiles = g ? [...g.tiles].sort((a, b) => b.workerMs - a.workerMs).slice(0, 10) : [];
-    const sumBuildingsStats = d.buildStats;
     body.append(
       h('h3', {}, 'Area'),
       kv([
         ['source', d.load ? `${d.load.name} (${d.load.format})` : '–'],
-        [
-          'OSM elements',
-          d.load
-            ? `${count(d.load.nodes)} nodes, ${count(d.load.ways)} ways, ${count(d.load.relations)} rel.`
-            : '–',
-        ],
+        d.load?.tiles
+          ? [
+              'vector tiles',
+              `${d.load.tiles.count} at z${d.load.tiles.zoom}${d.load.tiles.missing ? ` (${d.load.tiles.missing} missing)` : ''}, ${fmt(d.load.bytes / 1e6, 1)} MB`,
+            ]
+          : [
+              'OSM elements',
+              d.load
+                ? `${count(d.load.nodes)} nodes, ${count(d.load.ways)} ways, ${count(d.load.relations)} rel.`
+                : '–',
+            ],
         ['buildings', count(d.buildings)],
         ['roads', count(d.roads)],
-        [
-          'skipped',
-          sumBuildingsStats
-            ? `${sumBuildingsStats.skippedIncomplete} incomplete, ${sumBuildingsStats.skippedByTag} by tag, ${sumBuildingsStats.skippedOutside} outside, ${sumBuildingsStats.orphanParts} orphan parts`
-            : '–',
-        ],
+        ['skipped', d.skipped ?? '–'],
       ]),
       h('h3', {}, 'Timings'),
       kv([

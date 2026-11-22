@@ -15,6 +15,7 @@
     "@osm-buildingen/core": "workspace:*",
     "@osm-buildingen/osm": "workspace:*",
     "@osm-buildingen/three": "workspace:*",
+    "@osm-buildingen/vector-tiles": "workspace:*",
     "three": "^0.170.0"
   },
   "devDependencies": {

@@ -290,6 +290,24 @@ label.check {
   transition: width 0.15s;
 }
 
+#attribution {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 2px 6px;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  border-top-left-radius: 4px;
+}
+
+#attribution[hidden] {
+  display: none;
+}
+
+#attribution a {
+  color: inherit;
+}
+
 /* --- controls --- */
 
 #controls .row {

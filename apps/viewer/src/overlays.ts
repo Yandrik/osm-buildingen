@@ -6,7 +6,6 @@
  */
 import type { BuildingInput, BuildingType, NeighbourInput, Polygon, Vec2 } from '@osm-buildingen/core';
 import { hashString } from '@osm-buildingen/core';
-import type { BuildingMeta } from '@osm-buildingen/osm';
 import {
   BufferAttribute,
   BufferGeometry,
@@ -17,12 +16,13 @@ import {
   MeshBasicMaterial,
 } from 'three';
 import type { DebugSummary, ResolveCache } from './analysis';
+import type { AreaMeta } from './area-build';
 import type { TileView } from './scene';
 import type { ColourMode } from './state';
 import { type Rgb, type Strip, ringSegments, stripGeometry } from './strips';
 
 export interface OverlayContext {
-  meta: readonly BuildingMeta[];
+  meta: readonly AreaMeta[];
   inputs: readonly BuildingInput[];
   resolved: ResolveCache;
   /** Present for buildings generated with `debug: true`. */

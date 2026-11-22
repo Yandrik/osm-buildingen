@@ -14,6 +14,16 @@ studio keeps 5173 / 4173. `?sample` in the URL loads the bundled extract at star
   above 25 km² are refused. Overpass errors show the adapter's message; retryable
   ones (429, 503/504, runtime-error remarks) get a Retry button. Overpass loads pass
   the bbox to `buildInputs` so only buildings with their centroid inside are emitted.
+- **Vector tiles**: the same bbox / centre fields, a TileJSON URL or `{z}/{x}/{y}`
+  template (default OpenFreeMap, `https://tiles.openfreemap.org/planet`), an API
+  key field that is not persisted, and the zoom (13–16, default 14, clamped to the
+  TileJSON `maxzoom`). The data worker runs `fetchTiles` (at most 36 tiles) and
+  keeps the decoded tiles; builds use `buildInputsFromTiles` with the same options
+  as OSM (see adapters/vector-tiles.md). The inspector then shows the tile
+  properties, height source, house numbers, POIs, landuse and tiles instead of
+  OSM tags, and links openstreetmap.org at the building's position. The
+  attribution line in the map corner shows OpenFreeMap (when used),
+  © OpenMapTiles and © OpenStreetMap contributors.
 - **Data worker** (`data-worker.ts`): reading, parsing and `buildInputs` run off the
   main thread. The worker keeps the parsed `OsmData`, so a style/seed change posts
   only the options. Newer requests supersede older ones (main ignores stale ids;
@@ -66,7 +76,8 @@ studio keeps 5173 / 4173. `?sample` in the URL loads the bundled extract at star
 ## Code
 
 `apps/viewer/src`: `main.ts` (wiring), `state.ts` (settings, validation, store; no
-DOM/three), `area.ts` (bbox parsing), `data.ts` + `data-worker.ts` +
+DOM/three), `area.ts` (bbox parsing), `area-build.ts` (union of the OSM and tile
+results, labels, selection matching), `data.ts` + `data-worker.ts` +
 `data-protocol.ts`, `tiles.ts` (pure tiling and the scheduler, tested in
 `test/tiles.test.ts`, run with `pnpm --filter @osm-buildingen/viewer test`),
 `generation.ts` (scheduler + pool + merge + stats), `generator.ts` (pool, worker

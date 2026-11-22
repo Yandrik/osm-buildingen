@@ -29,6 +29,7 @@ This folder is the living design. Update it in the same change as the code.
 | [04-performance.md](04-performance.md) | Workers, merging, detail levels, budgets |
 | [adapters/three.md](adapters/three.md) | three.js adapter |
 | [adapters/osm.md](adapters/osm.md) | OSM adapter |
+| [adapters/vector-tiles.md](adapters/vector-tiles.md) | Vector tile adapter (OpenMapTiles schema): evaluation and implementation |
 | [apps/viewer.md](apps/viewer.md) | OSM area debug viewer |
 | [apps/studio.md](apps/studio.md) | Single-building studio |
 | [05-testing.md](05-testing.md) | Test strategy |

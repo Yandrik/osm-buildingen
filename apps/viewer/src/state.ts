@@ -19,6 +19,8 @@ export const COLOUR_MODES: readonly { id: ColourMode; label: string }[] = [
 ];
 
 export const DEFAULT_OVERPASS = 'https://overpass-api.de/api/interpreter';
+/** OpenFreeMap: OpenMapTiles schema, no API key (https://openfreemap.org/tos/). */
+export const DEFAULT_TILE_SOURCE = 'https://tiles.openfreemap.org/planet';
 
 export interface Settings {
   region: Region;
@@ -45,6 +47,9 @@ export interface Settings {
   centreText: string;
   radius: number;
   endpoint: string;
+  /** Vector tiles: TileJSON URL or `{z}/{x}/{y}` template (OpenMapTiles schema). The API key is not stored. */
+  tileSource: string;
+  tileZoom: number;
   studioUrl: string;
 }
 
@@ -68,6 +73,8 @@ export const DEFAULT_SETTINGS: Settings = {
   centreText: '48.3984, 9.9925',
   radius: 250,
   endpoint: DEFAULT_OVERPASS,
+  tileSource: DEFAULT_TILE_SOURCE,
+  tileZoom: 14,
   studioUrl: 'http://localhost:5173/',
 };
 
@@ -120,6 +127,8 @@ export function sanitizeSettings(value: unknown): Settings {
     centreText: str(v.centreText, d.centreText),
     radius: num(v.radius, d.radius, 10, 5000),
     endpoint: str(v.endpoint, d.endpoint) || d.endpoint,
+    tileSource: str(v.tileSource, d.tileSource) || d.tileSource,
+    tileZoom: Math.round(num(v.tileZoom, d.tileZoom, 13, 16)),
     studioUrl: str(v.studioUrl, d.studioUrl) || d.studioUrl,
   };
 }

@@ -63,6 +63,9 @@ importers:
       '@osm-buildingen/three':
         specifier: workspace:*
         version: link:../../packages/three
+      '@osm-buildingen/vector-tiles':
+        specifier: workspace:*
+        version: link:../../packages/vector-tiles
       three:
         specifier: ^0.170.0
         version: 0.170.0
@@ -104,6 +107,15 @@ importers:
       three:
         specifier: ^0.170.0
         version: 0.170.0
+
+  packages/vector-tiles:
+    dependencies:
+      '@osm-buildingen/core':
+        specifier: workspace:*
+        version: link:../core
+      '@osm-buildingen/osm':
+        specifier: workspace:*
+        version: link:../osm
 
 packages:
 

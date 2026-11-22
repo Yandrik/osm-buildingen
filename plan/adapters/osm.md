@@ -164,7 +164,7 @@ does not depend on element order.
 
 - Core ignores `parts` so far; the Minster renders as one massing block.
 - `roof:angle`, `building:material`, `roof:material` are not read.
-- Vector tiles (OpenMapTiles schema) are evaluated separately; see
-  ../07-open-questions.md.
+- Vector tiles (OpenMapTiles schema) have their own adapter; see
+  [vector-tiles.md](vector-tiles.md).
 - Groups come only from distance and addresses; plot polygons
   (`landuse`, cadastre) could replace this later.

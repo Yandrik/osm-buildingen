@@ -6,10 +6,11 @@
  * the flow at the earliest step it affects; newer requests supersede older ones.
  */
 import type { Vec2 } from '@osm-buildingen/core';
-import type { BuildOptions, BuildingMeta, LatLonBBox } from '@osm-buildingen/osm';
+import type { BuildOptions, LatLonBBox } from '@osm-buildingen/osm';
 import sampleUrl from '../../../packages/osm/test/fixtures/ulm-minster.osm?url';
 import { type ResolveCache, createResolveCache, inspectBuilding } from './analysis';
 import { parseBBox, parseCentre } from './area';
+import { type AreaMeta, metaLabel, sameBuilding, skippedText } from './area-build';
 import { type BuildOutcome, type DataSource, LoadError, type LoadSummary, createDataClient } from './data';
 import { byId } from './dom';
 import { type DetailOptions, type Generation, startGeneration } from './generation';
@@ -42,6 +43,7 @@ const progressEl = byId<HTMLElement>('progress');
 const progressBar = byId<HTMLElement>('progress-bar').firstElementChild as HTMLElement;
 const areaInfo = byId<HTMLElement>('area-info');
 const toastEl = byId<HTMLElement>('toast');
+const attributionEl = byId<HTMLElement>('attribution');
 
 function applyThemeAttribute(): void {
   const theme = store.get().theme;
@@ -65,6 +67,26 @@ function toast(message: string): void {
 }
 
 const errorText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+/** Map data credit for the loaded source; OpenMapTiles-schema tiles require the OpenMapTiles credit. */
+function showAttribution(source: DataSource): void {
+  const link = (href: string, text: string): HTMLAnchorElement => {
+    const a = document.createElement('a');
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = text;
+    return a;
+  };
+  const parts: HTMLElement[] = [];
+  if (source.kind === 'tiles') {
+    if (/openfreemap\.org/.test(source.url)) parts.push(link('https://openfreemap.org/', 'OpenFreeMap'));
+    parts.push(link('https://openmaptiles.org/', '© OpenMapTiles'));
+  }
+  parts.push(link('https://www.openstreetmap.org/copyright', '© OpenStreetMap contributors'));
+  attributionEl.replaceChildren(...parts.flatMap((p, i) => (i > 0 ? [' ', p] : [p])));
+  attributionEl.hidden = false;
+}
 
 // ---------------------------------------------------------------------------
 // Session state (what is loaded and shown)
@@ -92,8 +114,6 @@ const detailOptions = (): DetailOptions => {
   return { mode: s.detail, radius: s.autoRadius, debug: needsDebug(s) };
 };
 
-const label = (m: BuildingMeta): string => `${m.osmType} ${m.osmId}${m.ring > 0 ? ` #${m.ring}` : ''}`;
-
 // ---------------------------------------------------------------------------
 // Loading and building inputs
 // ---------------------------------------------------------------------------
@@ -110,9 +130,12 @@ async function load(source: DataSource, clipBox: LatLonBBox | undefined): Promis
     select(null);
     clearScene();
     controls.setStatus(
-      `Loaded ${result.name}: ${result.nodes.toLocaleString('en-US')} nodes, ${result.ways.toLocaleString('en-US')} ways.`,
+      result.tiles
+        ? `Loaded ${result.tiles.count} vector tiles (z${result.tiles.zoom}) from ${result.name}.`
+        : `Loaded ${result.name}: ${result.nodes.toLocaleString('en-US')} nodes, ${result.ways.toLocaleString('en-US')} ways.`,
       'info',
     );
+    showAttribution(source);
     await rebuild();
   } catch (e) {
     const retryable = e instanceof LoadError && e.retryable;
@@ -135,21 +158,18 @@ async function rebuild(): Promise<void> {
   try {
     const out = await data.build(options);
     if (!out) return; // superseded by a newer settings change
-    const previous = selected !== null ? build?.result.meta[selected] : undefined;
+    const previous: AreaMeta | undefined = selected !== null ? build?.result.meta[selected] : undefined;
     build = out;
-    // Indices follow (type, id, ring) order, so the same element keeps its selection.
-    const again = previous
-      ? out.result.meta.findIndex(
-          (m) => m.osmId === previous.osmId && m.osmType === previous.osmType && m.ring === previous.ring,
-        )
-      : -1;
+    // The same element keeps its selection (OSM id, or the tile building's stable key).
+    const meta: readonly AreaMeta[] = out.result.meta;
+    const again = previous ? meta.findIndex((m) => sameBuilding(m, previous)) : -1;
     startTiles(false, again >= 0 ? again : null);
   } catch (e) {
     controls.setStatus(`buildInputs failed: ${errorText(e)}`, 'error');
   }
 }
 
-function extentOf(meta: readonly BuildingMeta[]): Extent {
+function extentOf(meta: readonly AreaMeta[]): Extent {
   if (meta.length === 0) return { minX: -100, minY: -100, maxX: 100, maxY: 100 };
   const e = {
     minX: Number.POSITIVE_INFINITY,
@@ -350,6 +370,20 @@ const controls = createControls(byId('controls'), store, {
     }
     void load({ kind: 'overpass', bbox: area.bbox, endpoint: s.endpoint.trim() }, area.bbox);
   },
+  loadTiles(apiKey) {
+    const s = store.get();
+    const area = s.areaMode === 'bbox' ? parseBBox(s.bboxText) : parseCentre(s.centreText, s.radius);
+    if ('error' in area) {
+      controls.setStatus(area.error, 'error');
+      return;
+    }
+    const url = s.tileSource.trim();
+    if (!/^https?:\/\//.test(url)) {
+      controls.setStatus('Enter a TileJSON URL or a tile URL template with {z}/{x}/{y}.', 'error');
+      return;
+    }
+    void load({ kind: 'tiles', bbox: area.bbox, url, apiKey: apiKey.trim(), zoom: s.tileZoom }, area.bbox);
+  },
   cancelLoad: () => data.cancelLoad(),
   retry() {
     if (lastLoad) void load(lastLoad.source, lastLoad.clip);
@@ -415,14 +449,14 @@ async function copyText(text: string): Promise<void> {
 
 function worstBuildings(): StatsData['worst'] {
   if (!build) return null;
-  const meta = build.result.meta;
+  const meta: readonly AreaMeta[] = build.result.meta;
   let list: BuildingTime[] = [];
   let source = '';
   if (profileResult) {
     source = 'Profile run: main thread, one generateBuilding call each.';
     list = profileResult.map((e) => ({
       index: e.index,
-      label: label(meta[e.index] as BuildingMeta),
+      label: metaLabel(meta[e.index] as AreaMeta),
       ms: e.ms,
       triangles: e.triangles,
     }));
@@ -433,7 +467,7 @@ function worstBuildings(): StatsData['worst'] {
       if (d)
         list.push({
           index,
-          label: label(meta[index] as BuildingMeta),
+          label: metaLabel(meta[index] as AreaMeta),
           ms: d.ms,
           triangles: g.triangles[index] ?? 0,
         });
@@ -445,13 +479,13 @@ function worstBuildings(): StatsData['worst'] {
 }
 
 function collectStats(): StatsData {
-  const meta = build?.result.meta ?? [];
+  const meta: readonly AreaMeta[] = build?.result.meta ?? [];
   return {
     poolSize: POOL_SIZE,
     load: summary,
     buildMs: build?.ms ?? null,
     buildWallMs: build?.wallMs ?? null,
-    buildStats: build?.result.stats ?? null,
+    skipped: build ? skippedText(build.result) : null,
     buildings: build?.result.inputs.length ?? 0,
     roads: build?.result.roads.length ?? 0,
     generation: generation?.stats() ?? null,
@@ -459,7 +493,7 @@ function collectStats(): StatsData {
     failures: generation
       ? [...generation.errors].slice(0, 200).map(([index, message]) => ({
           index,
-          label: meta[index] ? label(meta[index]) : String(index),
+          label: meta[index] ? metaLabel(meta[index]) : String(index),
           message,
         }))
       : [],

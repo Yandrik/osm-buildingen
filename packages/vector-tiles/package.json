@@ -1,0 +1,17 @@
+{
+  "name": "@osm-buildingen/vector-tiles",
+  "version": "0.1.0",
+  "description": "Vector tile adapter for @osm-buildingen/core: OpenMapTiles-schema MVT -> BuildingInput[]",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fetch": "./src/fetch.ts"
+  },
+  "dependencies": {
+    "@osm-buildingen/core": "workspace:*",
+    "@osm-buildingen/osm": "workspace:*"
+  }
+}

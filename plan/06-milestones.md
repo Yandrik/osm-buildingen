@@ -21,6 +21,8 @@ Status legend: [ ] open, [~] in progress, [x] done.
    attic windows, rooftop units), massing detail level and golden tests are
    done. Still open: a real tunnel through the building (the arch is a dark
    recess), trim bands, benchmarks in the browser, tuning on real towns.
-8. [ ] **Vector tiles.** Evaluate OpenMapTiles as an input source.
+8. [x] **Vector tiles.** Evaluate OpenMapTiles as an input source. Evaluated
+   and added as `packages/vector-tiles` with a viewer source; same buildings and
+   levels as the OSM adapter in Ulm, without roof shapes and types.
 
 Each milestone ends with: tests green, plan updated, commit.

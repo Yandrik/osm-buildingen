@@ -6,6 +6,9 @@
  */
 import type { Vec2 } from '@osm-buildingen/core';
 import type { MapRoad } from '@osm-buildingen/osm';
+
+/** What the scene draws of a road; OSM and vector-tile roads both have it. */
+export type RoadLine = Pick<MapRoad, 'line' | 'width' | 'kind'>;
 import { type BuildingRange, createBuildingMaterial } from '@osm-buildingen/three';
 import {
   type BufferGeometry,
@@ -67,7 +70,7 @@ export interface SceneView {
   fit(extent: Extent): void;
   /** Moves the target to a point, keeping the view direction. */
   focus(point: Vec2, radius: number): void;
-  setRoads(roads: readonly MapRoad[]): void;
+  setRoads(roads: readonly RoadLine[]): void;
   addTile(view: TileView): void;
   removeTile(key: string): void;
   tiles(): ReadonlyMap<string, TileView>;
@@ -121,7 +124,7 @@ export function createScene(container: HTMLElement): SceneView {
     polygonOffsetUnits: -4,
   });
   let roadMesh: Mesh | null = null;
-  let roads: readonly MapRoad[] = [];
+  let roads: readonly RoadLine[] = [];
 
   const buildingMaterial = createBuildingMaterial();
   const tileGroup = new Group();

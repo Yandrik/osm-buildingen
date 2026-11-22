@@ -2,7 +2,8 @@
  * Loading and input building, off the main thread. A newer request supersedes an
  * older one: superseded promises resolve to `null` and their results are ignored.
  */
-import type { BuildOptions, BuildResult } from '@osm-buildingen/osm';
+import type { BuildOptions } from '@osm-buildingen/osm';
+import type { AreaBuild } from './area-build';
 import type { DataRequest, DataResponse, DataSource, LoadSummary } from './data-protocol';
 
 export type { DataSource, LoadSummary };
@@ -19,8 +20,8 @@ export class LoadError extends Error {
 }
 
 export interface BuildOutcome {
-  result: BuildResult;
-  /** `buildInputs` time inside the worker. */
+  result: AreaBuild;
+  /** `buildInputs` / `buildInputsFromTiles` time inside the worker. */
   ms: number;
   /** Round trip including the structured clone of the result. */
   wallMs: number;

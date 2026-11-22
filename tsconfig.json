@@ -1,4 +1,9 @@
 {
   "files": [],
-  "references": [{ "path": "packages/core" }, { "path": "packages/three" }, { "path": "packages/osm" }]
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/three" },
+    { "path": "packages/osm" },
+    { "path": "packages/vector-tiles" }
+  ]
 }

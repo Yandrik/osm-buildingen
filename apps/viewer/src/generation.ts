@@ -7,10 +7,10 @@
  * does not blank the map; they are removed once the new generation is complete.
  */
 import type { BuildingInput, BuildingMesh, Vec2 } from '@osm-buildingen/core';
-import type { BuildResult } from '@osm-buildingen/osm';
 import { type GeneratorPool, mergeBuildings } from '@osm-buildingen/three';
 import { Mesh } from 'three';
 import { type DebugSummary, summarizeDebug } from './analysis';
+import type { AreaBuild, AreaMeta } from './area-build';
 import type { SceneView, TileView } from './scene';
 import {
   type DetailSetting,
@@ -70,7 +70,7 @@ export interface GenerationEvents {
 
 export interface Generation {
   readonly id: number;
-  readonly build: BuildResult;
+  readonly build: AreaBuild;
   readonly tiles: readonly Tile[];
   /** Per building, when generated with `debug: true`. */
   readonly debug: (DebugSummary | undefined)[];
@@ -87,7 +87,7 @@ export interface Generation {
 let nextGenerationId = 1;
 
 export function startGeneration(
-  build: BuildResult,
+  build: AreaBuild,
   tileSize: number,
   options: DetailOptions,
   scene: SceneView,
@@ -96,8 +96,9 @@ export function startGeneration(
   events: GenerationEvents,
 ): Generation {
   const id = nextGenerationId++;
+  const meta: readonly AreaMeta[] = build.meta;
   const tiles = assignTiles(
-    build.meta.map((m) => m.centroid),
+    meta.map((m) => m.centroid),
     tileSize,
   );
   const debug: (DebugSummary | undefined)[] = new Array(build.inputs.length);

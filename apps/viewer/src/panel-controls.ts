@@ -1,5 +1,5 @@
 /**
- * Left panel: loading (sample, file, Overpass), generation settings, overlays and
+ * Left panel: loading (sample, file, Overpass, vector tiles), generation settings, overlays and
  * view options. Writes straight into the settings store; main.ts decides what
  * to regenerate.
  */
@@ -11,6 +11,8 @@ export interface ControlActions {
   loadSample(): void;
   loadFile(file: File): void;
   loadOverpass(): void;
+  /** The API key comes from a field that is not persisted. */
+  loadTiles(apiKey: string): void;
   cancelLoad(): void;
   retry(): void;
   fit(): void;
@@ -162,6 +164,14 @@ export function createControls(
   syncArea();
 
   const overpassButton = h('button', { on: { click: () => actions.loadOverpass() } }, 'Load from Overpass');
+  const keyField = h('input', {
+    attrs: { type: 'password', placeholder: 'none', autocomplete: 'off', spellcheck: 'false' },
+  });
+  const tilesButton = h(
+    'button',
+    { on: { click: () => actions.loadTiles(keyField.value) } },
+    'Load vector tiles',
+  );
   const cancelButton = h(
     'button',
     { on: { click: () => actions.cancelLoad() }, attrs: { hidden: true } },
@@ -256,7 +266,19 @@ export function createControls(
     centreRow,
     radiusRow,
     row('endpoint', textField('endpoint', 'https://overpass-api.de/api/interpreter')),
-    h('div', { class: 'buttons' }, overpassButton, cancelButton),
+    h('div', { class: 'buttons' }, overpassButton),
+    row(
+      'tiles',
+      textField('tileSource', 'TileJSON URL or …/{z}/{x}/{y}.pbf', () => actions.loadTiles(keyField.value)),
+    ),
+    row('API key', keyField),
+    row('zoom', numberField('tileZoom', 13, 16, 1)),
+    h('div', { class: 'buttons' }, tilesButton, cancelButton),
+    h(
+      'div',
+      { class: 'muted hint' },
+      'OpenMapTiles schema (default: OpenFreeMap, no key; heights, no roof shapes or building types). The key is not saved.',
+    ),
     status,
 
     h('h3', {}, 'Generation'),
@@ -324,6 +346,7 @@ export function createControls(
     setLoading(loading) {
       cancelButton.hidden = !loading;
       overpassButton.disabled = loading;
+      tilesButton.disabled = loading;
     },
   };
 }

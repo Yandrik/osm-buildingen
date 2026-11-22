@@ -2,10 +2,12 @@
 
 ## Open
 
-- **Vector tiles (OpenMapTiles).** The building layer there usually carries
-  only `render_height` and `render_min_height`, no roof shape, type or
-  address, and geometry is clipped at tile borders. To evaluate: how much of
-  the adapter's output survives, and how to stitch clipped footprints.
+- **Vector tiles (OpenMapTiles).** Evaluated and implemented, see
+  adapters/vector-tiles.md: footprints, levels (reconstructed from
+  `render_height`), addresses, shops and parts survive; roof shapes and types
+  do not. Open: PMTiles archives, the Protomaps schema, and whether core
+  should accept a `minLevel` / "height without roof" so the levels heuristic
+  can go.
 - **Plot polygons.** Grouping currently uses proximity and addresses. A caller
   with parcel data could pass group keys directly; should the OSM adapter
   accept optional plot polygons?

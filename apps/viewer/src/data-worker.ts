@@ -1,15 +1,19 @@
 /// <reference lib="webworker" />
 /**
- * Data worker: downloads / reads, parses and runs `buildInputs`. It keeps the parsed
- * `OsmData` so a style or seed change only posts the build options, never the data.
+ * Data worker: downloads / reads, parses and runs `buildInputs` (OSM) or
+ * `buildInputsFromTiles` (vector tiles). It keeps the parsed data so a style or
+ * seed change only posts the build options, never the data.
  */
 import { type OsmData, buildInputs, parseOsmXml, parseOverpassJson } from '@osm-buildingen/osm';
 import { OverpassError, fetchOverpass } from '@osm-buildingen/osm/overpass';
+import { type DecodedTile, buildInputsFromTiles } from '@osm-buildingen/vector-tiles';
+import { TileFetchError, fetchTiles } from '@osm-buildingen/vector-tiles/fetch';
+import type { AreaBuild } from './area-build';
 import type { DataRequest, DataResponse, DataSource, LoadSummary } from './data-protocol';
 
 declare const self: DedicatedWorkerGlobalScope;
 
-let data: OsmData | null = null;
+let data: { kind: 'osm'; osm: OsmData } | { kind: 'tiles'; tiles: DecodedTile[] } | null = null;
 const aborts = new Map<number, AbortController>();
 /** Only the newest build request runs; older ones queued behind a running build are dropped. */
 let pendingBuild: Extract<DataRequest, { kind: 'build' }> | null = null;
@@ -23,7 +27,7 @@ function detectFormat(name: string, text: string): 'xml' | 'json' {
 }
 
 async function readSource(
-  source: Exclude<DataSource, { kind: 'overpass' }>,
+  source: Extract<DataSource, { kind: 'blob' | 'url' }>,
   signal: AbortSignal,
 ): Promise<string> {
   if (source.kind === 'blob') return source.blob.text();
@@ -43,8 +47,34 @@ async function load(id: number, source: DataSource): Promise<void> {
       const next = await fetchOverpass(source.bbox, { endpoint: source.endpoint, signal: controller.signal });
       // fetchOverpass parses internally; the split between download and parse is not visible.
       const t1 = performance.now();
-      data = next;
+      data = { kind: 'osm', osm: next };
       summary = describe(next, 'Overpass', 'json', 0, t1 - t0, 0);
+    } else if (source.kind === 'tiles') {
+      post({ kind: 'progress', id, message: 'Loading vector tiles…' });
+      const isTemplate = source.url.includes('{z}');
+      const result = await fetchTiles({
+        ...(isTemplate ? { tileUrl: source.url } : { tileJson: source.url }),
+        bbox: source.bbox,
+        zoom: source.zoom,
+        signal: controller.signal,
+        ...(source.apiKey ? { apiKey: source.apiKey } : {}),
+        onProgress: (done, total) =>
+          post({ kind: 'progress', id, message: `Vector tiles ${done} / ${total}…` }),
+      });
+      data = { kind: 'tiles', tiles: result.tiles };
+      // Download and decoding are interleaved; the total is reported as read time.
+      summary = {
+        name: new URL(source.url.replace(/[{}]/g, '_')).host,
+        format: 'mvt',
+        bytes: result.bytes,
+        nodes: 0,
+        ways: 0,
+        relations: 0,
+        tiles: { count: result.tiles.length, zoom: result.zoom, missing: result.missing },
+        bounds: source.bbox,
+        readMs: performance.now() - t0,
+        parseMs: 0,
+      };
     } else {
       post({ kind: 'progress', id, message: `Reading ${source.name}…` });
       const text = await readSource(source, controller.signal);
@@ -53,12 +83,12 @@ async function load(id: number, source: DataSource): Promise<void> {
       const format = detectFormat(source.name, text);
       const next = format === 'json' ? parseOverpassJson(JSON.parse(text)) : parseOsmXml(text);
       const t2 = performance.now();
-      data = next;
+      data = { kind: 'osm', osm: next };
       summary = describe(next, source.name, format, text.length, t1 - t0, t2 - t1);
     }
     post({ kind: 'loaded', id, summary });
   } catch (error) {
-    if (error instanceof OverpassError) {
+    if (error instanceof OverpassError || error instanceof TileFetchError) {
       post({ kind: 'error', id, message: error.message, status: error.status, retryable: error.retryable });
     } else if (controller.signal.aborted) {
       post({ kind: 'error', id, message: 'Cancelled.' });
@@ -101,7 +131,10 @@ function runPendingBuild(): void {
   }
   try {
     const t0 = performance.now();
-    const result = buildInputs(data, request.options);
+    const result: AreaBuild =
+      data.kind === 'osm'
+        ? { source: 'osm', ...buildInputs(data.osm, request.options) }
+        : { source: 'tiles', ...buildInputsFromTiles(data.tiles, request.options) };
     post({ kind: 'built', id: request.id, result, ms: performance.now() - t0 });
   } catch (error) {
     post({ kind: 'error', id: request.id, message: error instanceof Error ? error.message : String(error) });

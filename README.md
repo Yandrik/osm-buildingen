@@ -40,6 +40,7 @@ const meshes = inputs.map(generateBuilding);                // or use the worker
 | `packages/core` | The generator. Pure TypeScript, no DOM, no three.js. |
 | `packages/three` | three.js adapter: geometry, per-tile merging, worker pool. |
 | `packages/osm` | OpenStreetMap data to generator input. |
+| `packages/vector-tiles` | OpenMapTiles-schema vector tiles to generator input. |
 | `apps/studio` | Design and debug one building (`pnpm studio`, port 5173). |
 | `apps/viewer` | Generate a whole OSM area (`pnpm viewer`, port 5174). |
 
