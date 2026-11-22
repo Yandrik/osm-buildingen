@@ -5,3 +5,7 @@
 
 © OpenStreetMap contributors, licensed under the Open Database License (ODbL),
 https://www.openstreetmap.org/copyright
+
+`ulm-churches.osm` holds two churches from the same city (Pauluskirche and
+Sankt Georg) with their `building:part` ways and nodes only. Same source and
+licence.

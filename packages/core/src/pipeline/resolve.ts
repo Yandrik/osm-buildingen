@@ -92,6 +92,15 @@ function roofHeightFromPitch(shape: RoofShape, pitchDeg: number, halfSpan: numbe
       return 0;
     case 'skillion':
       return Math.min(Math.tan(Math.min(pitchDeg, 15) * DEG) * 2 * halfSpan, 3.5);
+    // Curved roofs have natural proportions rather than a pitch.
+    case 'dome':
+      return halfSpan;
+    case 'onion':
+      return halfSpan * 2.2;
+    case 'round':
+      return halfSpan * 0.6;
+    case 'cone':
+      return Math.min(halfSpan * 2, 14);
     default:
       return Math.min(Math.tan(pitchDeg * DEG) * halfSpan, 9);
   }
@@ -139,7 +148,7 @@ export function resolve(input: BuildingInput): ResolvedSpec {
       (s) => supportedRoofShape(s, metrics, hasHoles) === s,
     ) ??
     'flat';
-  const shape = supportedRoofShape(wanted, metrics, hasHoles);
+  const shape = supportedRoofShape(wanted, metrics, hasHoles, input.roof?.shape !== undefined);
   if (shape !== wanted) notes.push(`roof shape ${wanted} not possible here, using ${shape}`);
 
   const across = input.roof?.ridge === 'across';
@@ -203,7 +212,7 @@ export function resolve(input: BuildingInput): ResolvedSpec {
     height: shape === 'flat' ? 0 : roofHeight,
     ridgeAxis,
     slopeDirection,
-    overhang: shape === 'flat' ? 0 : mm(evalCurve(style.overhang, era)),
+    overhang: shape === 'flat' ? 0 : mm(Math.max(0, input.roof?.overhang ?? evalCurve(style.overhang, era))),
     parapet: shape === 'flat' ? mm(evalCurve(style.parapet, era)) : 0,
   };
 

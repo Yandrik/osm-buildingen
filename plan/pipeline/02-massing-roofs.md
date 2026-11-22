@@ -156,3 +156,20 @@ overlap within 5 cm) and only the portion above the lower part is kept.
 Hole rings produce inward-facing walls. Flat roofs handle holes directly;
 pitched roofs are built as hipped from the skeleton with holes, and fall back to
 flat if that fails.
+
+## Curved roofs
+
+| Shape | Method |
+|---|---|
+| cone, dome, onion | The footprint is shrunk towards a centre while rising, ring by ring, along a fixed profile (`roofs/radial.ts`). Needs a centre that sees every edge from inside: round towers, apses, regular polygons, rectangles, even L shapes. Without one the roof falls back to hipped, with a note. |
+| round | Barrel roof: the footprint is cut into strips parallel to the ridge, each strip a flat face on an arc (`roofs/round.ts`). Gable walls follow the same profile. |
+| pyramidal | When tagged it is tried on any footprint with such a centre; when rolled only on squarish ones. |
+
+These shapes are never rolled; they only come from the input. Their faces have
+kind `curved` and get no dormers or chimneys.
+
+## Gabled roofs with holes
+
+A tagged gable on a footprint with small holes (towers standing inside the
+body, under 12 % of the area) keeps one ridge on the box axis and cuts the
+holes out with the clipper. Larger holes are courtyards and get a hipped ring.

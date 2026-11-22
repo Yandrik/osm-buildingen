@@ -87,7 +87,8 @@ describe('parseRoofShape', () => {
     expect(parseRoofShape('half_hipped')).toBe('half-hipped');
     expect(parseRoofShape('Pyramidal')).toBe('pyramidal');
     expect(parseRoofShape('mansard')).toBe('mansard');
-    expect(parseRoofShape('dome')).toBeUndefined();
+    expect(parseRoofShape('dome')).toBe('dome');
+    expect(parseRoofShape('many')).toBeUndefined();
     expect(parseRoofShape('many')).toBeUndefined();
   });
 });

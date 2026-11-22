@@ -1,7 +1,8 @@
+import { intersection } from '../../geom/boolean';
 import { clipRing, offsetRing } from '../../geom/polygon';
 import { type Skeleton, straightSkeleton } from '../../geom/skeleton';
 import { type Vec2, cross, dot, perp, sub } from '../../geom/vec2';
-import type { RoofGeometry, Vec3In, WallSegment } from '../../types';
+import type { RoofFace, RoofGeometry, Vec3In, WallSegment } from '../../types';
 import { type ProfilePoint, buildSkeletonRoof } from './fromSkeleton';
 import type { RoofContext } from './index';
 
@@ -182,9 +183,37 @@ function buildBoxGable(ctx: RoofContext): RoofGeometry | null {
   const lift = (p: Vec2): Vec3In => [p[0], p[1], eave + heightAt(p)];
 
   const outline2d = overhang.some((o) => o > 0) ? offsetRing(outer, overhang) : outer;
-  const left = clipRing(outline2d, center, side);
-  const right = clipRing(outline2d, center, [-side[0], -side[1]]);
-  if (left.length < 3 || right.length < 3) return null;
+  const faces: RoofFace[] = [];
+  const holes = spec.footprint.holes;
+  if (holes.length === 0) {
+    const left = clipRing(outline2d, center, side);
+    const right = clipRing(outline2d, center, [-side[0], -side[1]]);
+    if (left.length < 3 || right.length < 3) return null;
+    faces.push({ points: left.map(lift), kind: 'slope' }, { points: right.map(lift), kind: 'slope' });
+  } else {
+    // With holes (a courtyard, or towers standing inside the body) each roof side is
+    // the footprint cut by a half-plane; the clipper keeps the holes intact.
+    const reach = 4 * (spec.metrics.box.halfLength + spec.metrics.box.halfWidth) + 10;
+    for (const sign of [1, -1]) {
+      const a: Vec2 = [center[0] - axis[0] * reach, center[1] - axis[1] * reach];
+      const b: Vec2 = [center[0] + axis[0] * reach, center[1] + axis[1] * reach];
+      const out: Vec2 = [side[0] * sign * reach, side[1] * sign * reach];
+      const half =
+        sign > 0
+          ? [a, b, [b[0] + out[0], b[1] + out[1]] as Vec2, [a[0] + out[0], a[1] + out[1]] as Vec2]
+          : [b, a, [a[0] + out[0], a[1] + out[1]] as Vec2, [b[0] + out[0], b[1] + out[1]] as Vec2];
+      const pieces = intersection({ outer: outline2d, holes }, { outer: half });
+      if (pieces === null) return null;
+      for (const piece of pieces) {
+        faces.push({
+          points: piece.outer.map(lift),
+          holes: piece.holes?.map((h) => h.map(lift)),
+          kind: 'slope',
+        });
+      }
+    }
+    if (faces.length === 0) return null;
+  }
 
   // Roof edge with the ridge ends inserted, so the rake has its peak.
   const outline: Vec3In[] = [];
@@ -202,10 +231,7 @@ function buildBoxGable(ctx: RoofContext): RoofGeometry | null {
   }
 
   return {
-    faces: [
-      { points: left.map(lift), kind: 'slope' },
-      { points: right.map(lift), kind: 'slope' },
-    ],
+    faces,
     outline,
     heightAt,
     breaks(wall: WallSegment): number[] {

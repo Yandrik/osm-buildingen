@@ -6,7 +6,7 @@ Low-poly procedural building generator for three.js. Read `plan/README.md` first
 ## Layout
 
 - `packages/core` – generator. Pure TypeScript, no DOM, no three.js, no OSM.
-  Only runtime dependency: `earcut`.
+  Runtime dependencies: `earcut` and `polyclip-ts` (only via `geom/boolean.ts`).
 - `packages/three` – three.js adapter and worker pool.
 - `packages/osm` – OSM data -> `BuildingInput[]`.
 - `apps/studio`, `apps/viewer` – Vite apps.

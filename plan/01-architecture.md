@@ -18,7 +18,11 @@ formatting and linting.
 
 ## Dependency rules
 
-- `core` has no runtime dependencies except `earcut` (triangulation).
+- `core` has two runtime dependencies: `earcut` (triangulation) and
+  `polyclip-ts` (polygon boolean operations, used only in `geom/boolean.ts`).
+  The clipper was added because building parts share edges and vertices with
+  their outline, which is where simple clippers fail; writing a robust one is
+  a project of its own.
 - `three` depends on `core` types and on `three` (peer dependency).
 - `osm` depends on `core` types only.
 - Apps may depend on everything.

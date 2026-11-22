@@ -243,3 +243,138 @@ describe('parts, passages and entrances', () => {
     expect(mesh.debug?.facade?.streetWall).toBe(-1);
   });
 });
+
+describe('outline body and curved roofs', () => {
+  const tower = { footprint: { outer: rect(4, 4) }, height: 30, roof: { shape: 'dome' as const, height: 3 } };
+  const church = (parts: BuildingInput['parts']): BuildingInput =>
+    base({
+      footprint: { outer: rect(24, 10) },
+      height: 14,
+      roof: { shape: 'gabled', height: 5 },
+      parts,
+      detail: 'massing',
+      debug: true,
+    });
+  const areaOf = (d: { spec: { metrics: { area: number } } }): number => d.spec.metrics.area;
+
+  it('builds the part of the outline that no part covers', () => {
+    const mesh = generateBuilding(church([tower]));
+    checkMesh(mesh);
+    const parts = mesh.debug?.parts ?? [];
+    expect(parts.length).toBe(2);
+    const body = parts[1];
+    expect(body && areaOf(body)).toBeCloseTo(24 * 10 - 16, 1);
+    expect(body?.spec.roof.shape).toBe('gabled');
+    expect(body && body.spec.base + body.spec.wallHeight + body.spec.roof.height).toBeCloseTo(14, 2);
+    expect(mesh.bounds.max[1]).toBeCloseTo(30, 1); // the tower still stands above it
+  });
+
+  it('adds no body when the parts cover the outline', () => {
+    const halves = [
+      { footprint: { outer: rect(12, 10) }, height: 10 },
+      {
+        footprint: {
+          outer: [
+            [12, 0],
+            [24, 0],
+            [24, 10],
+            [12, 10],
+          ] as Vec2[],
+        },
+        height: 16,
+      },
+    ];
+    expect(generateBuilding(church(halves)).debug?.parts?.length).toBe(2);
+  });
+
+  it('ignores slivers left by imprecise parts', () => {
+    const almost = [
+      {
+        footprint: {
+          outer: [
+            [0.15, 0.1],
+            [23.9, 0.1],
+            [23.9, 9.9],
+            [0.15, 9.9],
+          ] as Vec2[],
+        },
+        height: 12,
+      },
+    ];
+    expect(generateBuilding(church(almost)).debug?.parts?.length).toBe(1);
+  });
+
+  it('keeps the body under a part that starts above it', () => {
+    const turret = {
+      footprint: {
+        outer: [
+          [10, 3],
+          [14, 3],
+          [14, 7],
+          [10, 7],
+        ] as Vec2[],
+      },
+      height: 22,
+      minHeight: 12,
+      roof: { shape: 'cone' as const, height: 6 },
+    };
+    const parts = generateBuilding(church([turret])).debug?.parts ?? [];
+    expect(parts.length).toBe(2);
+    expect(parts[1] && areaOf(parts[1])).toBeCloseTo(240, 1); // nothing cut out of the body
+  });
+
+  it('cuts the body around a tower standing inside it and keeps the tagged gable', () => {
+    const inside = {
+      footprint: {
+        outer: [
+          [10, 3],
+          [14, 3],
+          [14, 7],
+          [10, 7],
+        ] as Vec2[],
+      },
+      height: 30,
+      roof: { shape: 'onion' as const },
+    };
+    const mesh = generateBuilding(church([inside]));
+    checkMesh(mesh);
+    const body = mesh.debug?.parts?.[1];
+    expect(body?.spec.footprint.holes.length).toBe(1);
+    expect(body?.spec.roof.shape).toBe('gabled');
+  });
+
+  it('builds dome, onion, cone and round roofs on round and square footprints', () => {
+    const circle: Vec2[] = Array.from({ length: 16 }, (_, i) => [
+      5 * Math.cos((i / 16) * 2 * Math.PI),
+      5 * Math.sin((i / 16) * 2 * Math.PI),
+    ]);
+    for (const shape of ['dome', 'onion', 'cone', 'round'] as const) {
+      for (const outer of [circle, rect(8, 8), rect(14, 6)]) {
+        const mesh = generateBuilding(
+          base({ footprint: { outer }, height: 20, roof: { shape, height: 6 }, debug: true }),
+        );
+        checkMesh(mesh);
+        expect(mesh.debug?.spec.roof.shape).toBe(shape);
+        expect(mesh.debug?.spec.notes).toEqual([]);
+        expect(mesh.bounds.max[1]).toBeCloseTo(20, 1);
+      }
+    }
+  });
+
+  it('falls back to a skeleton roof when a dome cannot sit on the footprint', () => {
+    // A U shape has no point that sees all of its edges from inside.
+    const U: Vec2[] = [
+      [0, 0],
+      [14, 0],
+      [14, 10],
+      [10, 10],
+      [10, 4],
+      [4, 4],
+      [4, 10],
+      [0, 10],
+    ];
+    const mesh = generateBuilding(base({ footprint: { outer: U }, roof: { shape: 'dome' }, debug: true }));
+    checkMesh(mesh);
+    expect(mesh.debug?.spec.notes.join(' ')).toContain('using hipped');
+  });
+});

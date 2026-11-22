@@ -5,6 +5,8 @@ import { buildFlat } from './flat';
 import { NEAR_RECTANGLE, buildGabled, buildGambrel, buildHalfHipped, buildMansard } from './gabled';
 import { buildHipped, canBuildHipped } from './hipped';
 import { buildPyramidal } from './pyramidal';
+import { buildRadial } from './radial';
+import { buildRound } from './round';
 import { buildSkillion } from './skillion';
 
 export interface RoofContext {
@@ -24,10 +26,20 @@ export function supportedRoofShape(
   shape: RoofShape,
   metrics: FootprintMetrics,
   hasHoles: boolean,
+  /** True when the caller asked for this shape (a tag), false when it is being rolled. */
+  explicit = false,
 ): RoofShape {
   if (hasHoles) {
     // Around a courtyard only the skeleton roof works; everything pitched becomes hipped.
     if (shape === 'flat' || shape === 'skillion') return 'flat';
+    // A tagged gable is kept when the holes are small (towers standing inside the body):
+    // one ridge on the box axis with the holes cut out. Around a real courtyard, and for
+    // rolled shapes, the roof becomes hipped: a ring of roof suits those better.
+    const outerArea = metrics.rectangularity * 4 * metrics.box.halfLength * metrics.box.halfWidth;
+    const holeShare = outerArea > 0 ? 1 - metrics.area / outerArea : 1;
+    const gableLike =
+      shape === 'gabled' || shape === 'round' || shape === 'half-hipped' || shape === 'gambrel';
+    if (explicit && gableLike && holeShare < 0.12) return 'gabled';
     return canBuildHipped(metrics) ? 'hipped' : 'flat';
   }
   const aspect = metrics.box.halfWidth > 0 ? metrics.box.halfLength / metrics.box.halfWidth : 99;
@@ -42,9 +54,15 @@ export function supportedRoofShape(
     case 'mansard':
       return canBuildHipped(metrics) ? 'mansard' : 'gabled';
     case 'pyramidal':
-      return metrics.rectangularity > 0.75 && aspect < 1.5
+      // A tagged pyramid is tried on any footprint (apses, towers); a rolled one only on squarish ones.
+      return explicit || (metrics.rectangularity > 0.75 && aspect < 1.5)
         ? 'pyramidal'
         : supportedRoofShape('hipped', metrics, hasHoles);
+    case 'dome':
+    case 'onion':
+    case 'cone':
+    case 'round':
+      return shape;
     case 'hipped':
       return canBuildHipped(metrics) ? 'hipped' : 'gabled';
   }
@@ -64,7 +82,7 @@ export function roofHalfSpan(
   across: boolean,
 ): number {
   const box = across ? metrics.box.halfLength : metrics.box.halfWidth;
-  const perWing = shape !== 'flat' && shape !== 'skillion' && shape !== 'pyramidal';
+  const perWing = !['flat', 'skillion', 'pyramidal', 'dome', 'onion', 'cone', 'round'].includes(shape);
   if (!perWing || across) return box;
   if (footprint.holes.length === 0 && metrics.rectangularity > NEAR_RECTANGLE) return box;
   const skeleton = straightSkeleton(footprint.outer, footprint.holes);
@@ -78,13 +96,26 @@ export function buildRoof(ctx: RoofContext): RoofGeometry {
   let roof: RoofGeometry | null = null;
   switch (spec.roof.shape) {
     case 'gabled':
-      roof = hasHoles ? null : buildGabled(ctx);
+      roof = buildGabled(ctx);
       break;
     case 'skillion':
       roof = hasHoles ? null : buildSkillion(ctx);
       break;
     case 'pyramidal':
-      roof = hasHoles ? null : buildPyramidal(ctx);
+    case 'cone':
+    case 'dome':
+    case 'onion':
+      if (!hasHoles)
+        roof = spec.roof.shape === 'pyramidal' ? buildPyramidal(ctx) : buildRadial(ctx, spec.roof.shape);
+      if (!roof) {
+        // No centre that sees every edge (an L-shaped tower, a courtyard): the skeleton roof is the closest thing.
+        roof = buildHipped(ctx);
+        if (roof) spec.notes.push(`${spec.roof.shape} roof needs a compact footprint, using hipped`);
+      }
+      break;
+    case 'round':
+      roof = hasHoles ? null : buildRound(ctx);
+      if (!roof && !hasHoles) roof = buildGabled(ctx);
       break;
     case 'hipped':
     case 'mansard':

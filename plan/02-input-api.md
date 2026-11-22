@@ -42,8 +42,21 @@ wall base.
 
 ### Parts
 
-A building with `parts` is built from its parts only; the outline is not
-drawn. Parts share the building's type, era, palette, facade variant and level
+A building with `parts` is built from its parts. Where the parts do not cover
+the outline, the uncovered rest is built as the building's body, with the
+building's own height, roof and colours. This is how real data works: mappers
+add parts for the towers of a church or the tall wing of a school and leave
+the main body to the outline. Rules:
+
+- Body = outline minus the parts that start below the body's wall top. A part
+  that starts above it (a roof turret) sits on the body and is not cut out.
+- Body pieces under 4 m² or thinner than 1.2 m on average are mapping slivers
+  and are dropped, so a fully covered outline gives no body.
+- If the subtraction fails, the outline is built whole when the parts cover
+  less than 60 % of it, otherwise only the parts are built.
+- Parts and body get no roof overhang; they are fitted against each other.
+
+Parts share the building's type, era, palette, facade variant and level
 height, so window rows line up. A part's `levels` counts from the ground and
 `minLevel` levels are skipped below it (OSM semantics). Parts block each
 other's walls where they touch, up to the lower part's wall top. One part gets

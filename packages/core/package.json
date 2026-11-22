@@ -10,6 +10,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "earcut": "^3.0.1"
+    "earcut": "^3.0.1",
+    "polyclip-ts": "^0.16.8"
   }
 }

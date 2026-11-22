@@ -1,4 +1,5 @@
-import { polygonArea, ringBounds } from './geom/polygon';
+import { difference } from './geom/boolean';
+import { perimeter, polygonArea, ringArea, ringBounds } from './geom/polygon';
 import { mergeMeshes } from './mesh/merge';
 import { assemble } from './pipeline/assemble';
 import { buildContext } from './pipeline/context';
@@ -29,8 +30,9 @@ export function resolveBuilding(input: BuildingInput): ResolvedSpec {
  * Generates one building. Pure: the same input always gives the same mesh.
  * Throws BuildingInputError for unusable footprints; otherwise always returns a mesh.
  *
- * A building with `parts` is built from its parts only (the outline is not drawn),
- * all sharing type, era and palette.
+ * A building with `parts` is built from its parts, all sharing type, era and
+ * palette. Where the parts do not cover the outline, the rest of the outline is
+ * built too, with the building's own height and roof (see `uncoveredBody`).
  */
 export function generateBuilding(input: BuildingInput): BuildingMesh {
   if (input.parts && input.parts.length > 0) return generateParts(input, input.parts);
@@ -91,7 +93,8 @@ function partInput(
     height: part.height ?? (hasOwnSize ? undefined : input.height),
     levels: levels ?? (hasOwnSize ? undefined : input.levels),
     minHeight,
-    roof: part.roof ?? (hasOwnSize ? undefined : input.roof),
+    // No overhang: parts are fitted against each other, an eave would poke into the neighbour.
+    roof: { ...(part.roof ?? (hasOwnSize ? undefined : input.roof)), overhang: 0 },
     colours: { ...input.colours, ...part.colours },
     year: input.year,
     hasAddress: input.hasAddress,
@@ -108,9 +111,61 @@ function partInput(
   };
 }
 
-function generateParts(input: BuildingInput, parts: readonly PartInput[]): BuildingMesh {
+/** Remainder pieces thinner than this (2 × area / perimeter, metres) are mapping slivers, not rooms. */
+const MIN_BODY_THICKNESS = 1.2;
+const MIN_BODY_AREA = 4;
+
+/**
+ * The part of the outline that no part covers, as extra parts carrying the
+ * building's own attributes.
+ *
+ * Strictly, an outline with parts is not a volume of its own. In real data it very
+ * often is: mappers add parts for the towers of a church or the tall wing of a
+ * school and leave the main body to the outline. So the outline minus the parts is
+ * built as the body. Fully covered outlines give an empty result.
+ *
+ * Parts that start above the body's walls (a roof turret) sit on top of it and are
+ * not subtracted; parts that start lower (a wing bridging a passage) are.
+ */
+function uncoveredBody(
+  input: BuildingInput,
+  parent: ResolvedSpec,
+  parts: readonly PartInput[],
+  inputs: BuildingInput[],
+): PartInput[] {
+  const bodyTop = parent.base + parent.wallHeight;
+  const covering = parts
+    .filter((_, i) => (inputs[i]?.minHeight ?? 0) < bodyTop - 0.5)
+    .map((p) => p.footprint);
+  const outline = { outer: parent.footprint.outer, holes: parent.footprint.holes };
+  let pieces = difference(outline, covering);
+  if (pieces === null) {
+    // Clipping failed. Keep the body whole when the parts clearly do not replace it.
+    const covered = covering.reduce((sum, p) => sum + ringArea(p.outer), 0);
+    parent.notes.push('could not subtract the parts from the outline');
+    pieces = covered < 0.6 * parent.metrics.area ? [outline] : [];
+  }
+  return pieces
+    .filter((p) => {
+      const area = polygonArea(p);
+      return area >= MIN_BODY_AREA && (2 * area) / perimeter(p.outer) >= MIN_BODY_THICKNESS;
+    })
+    .map((footprint) => ({
+      footprint,
+      height: input.height,
+      minHeight: input.minHeight,
+      levels: input.levels,
+      roof: input.roof,
+    }));
+}
+
+function generateParts(input: BuildingInput, given: readonly PartInput[]): BuildingMesh {
   const parent = resolve({ ...input, parts: undefined });
-  const inputs = parts.map((part, i) => partInput(input, parent, part, i));
+  const givenInputs = given.map((part, i) => partInput(input, parent, part, i));
+  const body = uncoveredBody(input, parent, given, givenInputs);
+  const parts = [...given, ...body];
+  // Body pieces get their own seeds, after the given parts, so adding one does not reshuffle the others.
+  const inputs = [...givenInputs, ...body.map((part, i) => partInput(input, parent, part, given.length + i))];
 
   // First pass: resolve every part to learn its wall top, so parts can block each other correctly.
   const specs: (ResolvedSpec | null)[] = inputs.map((p) => {

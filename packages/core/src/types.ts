@@ -32,6 +32,10 @@ export const ROOF_SHAPES = [
   'skillion',
   'gambrel',
   'mansard',
+  'dome',
+  'onion',
+  'cone',
+  'round',
 ] as const;
 export type RoofShape = (typeof ROOF_SHAPES)[number];
 
@@ -47,6 +51,8 @@ export interface RoofInput {
   direction?: number;
   /** Ridge along the long side (default) or across it. */
   ridge?: 'along' | 'across';
+  /** Eave overhang in metres. Default: from the style. */
+  overhang?: number;
   colour?: string;
 }
 
@@ -241,7 +247,8 @@ export interface RoofFace {
   points: Vec3In[];
   /** Holes (clockwise), only used by flat roofs over courtyards. */
   holes?: Vec3In[][];
-  kind: 'slope' | 'flat';
+  /** `curved` faces approximate a curved surface (domes, barrel roofs); they get no dormers or chimneys. */
+  kind: 'slope' | 'flat' | 'curved';
 }
 
 export interface RoofGeometry {

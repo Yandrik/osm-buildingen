@@ -97,6 +97,7 @@ export function addRoofDetails(stage: RoofDetailStage): number {
   };
 
   const slopes = roof.faces.filter((f) => f.kind === 'slope');
+  // Curved roofs (domes, barrels) have no 'slope' faces, so they get no chimneys or dormers.
   const pitched = spec.roof.shape !== 'flat' && slopes.length > 0;
 
   // --- Chimneys ---

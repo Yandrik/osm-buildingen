@@ -2,13 +2,15 @@ import { offsetRing } from '../../geom/polygon';
 import { type Vec2, pointSegment } from '../../geom/vec2';
 import type { RoofGeometry, Vec3In } from '../../types';
 import { type RoofContext, noBreaks, zeroHeight } from './index';
+import { radialCentre } from './radial';
 
-/** All edges rise to one apex above the centre of the oriented box. */
+/** All edges rise to one apex above the centre. Null when no point sees every edge from inside. */
 export function buildPyramidal(ctx: RoofContext): RoofGeometry | null {
   const { spec, eave, overhang } = ctx;
   const outer = spec.footprint.outer;
   if (spec.roof.height <= 0) return null;
-  const c = spec.metrics.box.center;
+  const c = radialCentre(outer, spec.metrics.box.center);
+  if (!c) return null;
   const apex: Vec3In = [c[0], c[1], eave + spec.roof.height];
 
   // Mean distance from the apex to the edges gives the slope used for the overhang drop.

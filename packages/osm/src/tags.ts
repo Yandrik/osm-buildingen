@@ -109,8 +109,8 @@ export function parseRidge(value: string | undefined): 'along' | 'across' | unde
 }
 
 /**
- * OSM `roof:shape` values to core shapes. Values core cannot build (dome, onion,
- * round, cone, many, …) are left out, so core picks a shape itself.
+ * OSM `roof:shape` values to core shapes. Values with no counterpart (`many`,
+ * free text) are left out, so core picks a shape itself.
  */
 export const ROOF_SHAPE_TABLE: Readonly<Record<string, RoofShape>> = {
   flat: 'flat',
@@ -131,6 +131,17 @@ export const ROOF_SHAPE_TABLE: Readonly<Record<string, RoofShape>> = {
   monopitch: 'skillion',
   gambrel: 'gambrel',
   mansard: 'mansard',
+  dome: 'dome',
+  onion: 'onion',
+  cone: 'cone',
+  conical: 'cone',
+  round: 'round',
+  barrel: 'round',
+  // Close relatives until core has the exact shape.
+  double_saltbox: 'gabled',
+  quadruple_saltbox: 'hipped',
+  sawtooth: 'flat',
+  butterfly: 'flat',
 };
 
 export function parseRoofShape(value: string | undefined): RoofShape | undefined {
