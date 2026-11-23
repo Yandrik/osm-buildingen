@@ -7,6 +7,11 @@ export { parseOverpassJson } from './overpass-json';
 export { buildInputs, GROUP_DISTANCE, NEIGHBOUR_DISTANCE, ROAD_DISTANCE } from './build';
 export type { BuildOptions, BuildResult } from './build';
 export { createProjection, project, unproject } from './projection';
+// Tag rules, for sources that already have assembled polygons with OSM tags.
+export { estimateHeight, partInput, readAttributes } from './attributes';
+export type { Attributes } from './attributes';
+export { classify, skipReason, specialReason } from './classify';
+export type { Classification, ClassifyContext } from './classify';
 export type { Projection } from './projection';
 export { parseDirection, parseLength, parseLevels, parseRoofShape, parseYear } from './tags';
 export type {

@@ -6,3 +6,6 @@ dist/
 .DS_Store
 .tsbuild/
 packages/*/LICENSE
+
+# Large local datasets for the sim (terrain pmtiles, OSM extracts)
+apps/sim/data/

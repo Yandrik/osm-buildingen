@@ -1,7 +1,14 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
   "files": {
-    "ignore": ["**/dist/**", "**/.tsbuild/**", "**/node_modules/**", "**/fixtures/**", "plan/**"]
+    "ignore": [
+      "**/dist/**",
+      "**/.tsbuild/**",
+      "**/node_modules/**",
+      "**/fixtures/**",
+      "plan/**",
+      "apps/sim/data/**"
+    ]
   },
   "formatter": {
     "indentStyle": "space",

@@ -20,6 +20,10 @@ buildInputs(data: OsmData, {
 }): { inputs, meta, origin, roads: MapRoad[], stats }
 createProjection(origin) / project(latLon, origin) / unproject(xy, origin)
 parseLength / parseLevels / parseDirection / parseYear / parseRoofShape
+// The tag rules on their own, for sources with already assembled, tagged polygons
+// (the sim's pre-tiled extract): the same results as inside buildInputs.
+readAttributes(tags) / estimateHeight(attrs) / partInput(footprint, attrs)
+classify(tags, ctx) / skipReason(tags) / specialReason(tags)
 
 // @osm-buildingen/osm/overpass  (the only module that touches the network)
 fetchOverpass(bbox, { endpoint?, signal?, timeout? }): Promise<OsmData>

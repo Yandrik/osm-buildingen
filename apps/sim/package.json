@@ -1,0 +1,30 @@
+{
+  "name": "@osm-buildingen/sim",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cell-shaded bike / car / plane sim over real terrain and OSM buildings (Paris area)",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "prepare-site": "tsx scripts/prepare-site.ts",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prepare-data": "tsx scripts/spill.ts data/osm/tiles data/osm/spill"
+  },
+  "dependencies": {
+    "@osm-buildingen/core": "workspace:*",
+    "@osm-buildingen/osm": "workspace:*",
+    "@osm-buildingen/three": "workspace:*",
+    "pmtiles": "^4.3.0",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.170.0",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.21"
+  }
+}

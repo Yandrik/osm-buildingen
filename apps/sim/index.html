@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#9fd4f5" />
+    <title>Paris Ride</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div id="hud">
+      <div class="bar">
+        <div class="group" role="group" aria-label="Vehicle">
+          <button data-vehicle="bike" title="Bike (1)">🚲</button>
+          <button data-vehicle="car" title="Car (2)">🚗</button>
+          <button data-vehicle="plane" title="Plane (3)">✈️</button>
+        </div>
+        <button id="camera" title="Camera (C)">🎥</button>
+        <button id="reset" title="Reset (R)">↺</button>
+        <select id="places" title="Teleport"></select>
+        <button id="help-btn" title="Help (H)">?</button>
+      </div>
+      <div class="readout">
+        <div id="speed"><b>0</b><span>km/h</span></div>
+        <div id="alt"></div>
+        <div id="status"></div>
+      </div>
+      <div id="compass"><div id="needle">N</div></div>
+      <div id="debug"></div>
+      <div id="loading">Loading terrain…</div>
+      <div id="help" hidden>
+        <h2>Controls &amp; settings</h2>
+        <table>
+          <tr><th colspan="2">Bike &amp; car</th></tr>
+          <tr><td>W / ↑</td><td>Accelerate</td></tr>
+          <tr><td>S / ↓</td><td>Brake / reverse</td></tr>
+          <tr><td>A D / ← →</td><td>Steer</td></tr>
+          <tr><td>Shift</td><td>Boost</td></tr>
+          <tr><td>Space</td><td>Handbrake</td></tr>
+          <tr><th colspan="2">Plane</th></tr>
+          <tr><td>S / ↓ · W / ↑</td><td>Pull up · push down</td></tr>
+          <tr><td>A D / ← →</td><td>Roll (bank to turn)</td></tr>
+          <tr><td>Q E</td><td>Rudder (steer on the ground)</td></tr>
+          <tr><td>Shift · Ctrl/Z</td><td>Throttle up · down</td></tr>
+          <tr><th colspan="2">General</th></tr>
+          <tr><td>1 2 3</td><td>Bike, car, plane</td></tr>
+          <tr><td>C</td><td>Camera: chase, far, cockpit</td></tr>
+          <tr><td>R</td><td>Reset here</td></tr>
+          <tr><td>O</td><td>Toggle outlines</td></tr>
+        </table>
+        <label class="setting">
+          Building distance <output id="bldg-value"></output>
+          <input id="bldg" type="range" min="100" max="3000" step="50" />
+        </label>
+        <label class="setting">
+          HQ distance <output id="hq-value"></output>
+          <input id="hq" type="range" min="50" max="1000" step="25" />
+        </label>
+        <p class="credits">Terrain © Mapterhorn · Map data © OpenStreetMap contributors (ODbL), Geofabrik extract</p>
+        <button id="help-close">Close</button>
+      </div>
+    </div>
+    <div id="touch" hidden>
+      <div id="stick"><div id="knob"></div></div>
+      <div id="pedals">
+        <button data-touch="boost" class="small">BOOST</button>
+        <button data-touch="brake">BRAKE</button>
+        <button data-touch="gas">GAS</button>
+      </div>
+      <div id="throttle">
+        <button data-touch="thr-up">THR +</button>
+        <div id="thr-bar"><div id="thr-fill"></div></div>
+        <button data-touch="thr-down">THR −</button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

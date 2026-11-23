@@ -1,0 +1,343 @@
+:root {
+  --ink: #2a2622;
+  --paper: #fffaf0;
+  --accent: #d9382e;
+  --panel: rgba(255, 250, 240, 0.88);
+  font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  color: var(--ink);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #9fd4f5;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#view {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+#hud {
+  position: fixed;
+  /* Keep the help panel above touch controls without blocking the rest of the screen. */
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 10px
+    max(10px, env(safe-area-inset-left));
+}
+
+#hud button,
+#hud select,
+#touch button {
+  pointer-events: auto;
+  font: inherit;
+  color: var(--ink);
+  background: var(--panel);
+  border: 2.5px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: 3px 3px 0 var(--ink);
+  cursor: pointer;
+}
+
+#hud button:active,
+#touch button:active,
+#touch button.on {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.bar .group {
+  display: flex;
+  gap: 4px;
+}
+
+.bar button {
+  min-width: 42px;
+  height: 40px;
+  font-size: 20px;
+  padding: 0 8px;
+}
+
+.bar button.active {
+  background: #ffd54a;
+}
+
+.bar select {
+  height: 40px;
+  padding: 0 8px;
+  font-size: 15px;
+  max-width: 46vw;
+  min-width: 120px;
+}
+
+.readout {
+  position: absolute;
+  left: max(10px, env(safe-area-inset-left));
+  bottom: 12px;
+  background: var(--panel);
+  border: 2.5px solid var(--ink);
+  border-radius: 12px;
+  box-shadow: 3px 3px 0 var(--ink);
+  padding: 6px 14px;
+  min-width: 130px;
+}
+
+#speed b {
+  font-size: 34px;
+  font-weight: 800;
+}
+
+#speed span {
+  margin-left: 4px;
+  font-size: 13px;
+}
+
+#alt,
+#status {
+  font-size: 13px;
+}
+
+#status {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+#compass {
+  position: absolute;
+  top: max(60px, calc(env(safe-area-inset-top) + 56px));
+  right: max(12px, env(safe-area-inset-right));
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2.5px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+#needle {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: start center;
+  font-weight: 800;
+  color: var(--accent);
+  padding-top: 2px;
+}
+
+#debug {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  font: 11px ui-monospace, monospace;
+  color: var(--ink);
+  background: rgba(255, 250, 240, 0.6);
+  padding: 3px 6px;
+  border-radius: 6px;
+  white-space: pre;
+}
+
+#loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--panel);
+  border: 2.5px solid var(--ink);
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-weight: 700;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+#help {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: 5px 5px 0 var(--ink);
+  padding: 12px 18px;
+  pointer-events: auto;
+}
+
+#help h2 {
+  margin: 4px 0 8px;
+}
+
+#help table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+#help th {
+  text-align: left;
+  padding-top: 8px;
+}
+
+#help td:first-child {
+  white-space: nowrap;
+  font-weight: 700;
+  padding-right: 12px;
+}
+
+.setting {
+  display: block;
+  margin-top: 12px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.setting input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.credits {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Touch controls */
+#touch {
+  position: fixed;
+  inset: auto 0 0 0;
+  height: 0;
+  pointer-events: none;
+}
+
+#stick {
+  position: fixed;
+  left: max(24px, env(safe-area-inset-left));
+  bottom: max(110px, calc(env(safe-area-inset-bottom) + 100px));
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  background: rgba(255, 250, 240, 0.35);
+  pointer-events: auto;
+}
+
+#knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58px;
+  height: 58px;
+  margin: -29px 0 0 -29px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+#pedals,
+#throttle {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+#pedals button {
+  width: 82px;
+  height: 110px;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+#pedals button.small {
+  height: 56px;
+  width: 70px;
+  font-size: 12px;
+}
+
+#throttle {
+  flex-direction: column;
+  align-items: center;
+}
+
+#throttle button {
+  width: 86px;
+  height: 64px;
+  font-weight: 800;
+}
+
+#thr-bar {
+  width: 22px;
+  height: 90px;
+  border: 2.5px solid var(--ink);
+  border-radius: 6px;
+  background: var(--panel);
+  position: relative;
+  overflow: hidden;
+}
+
+#thr-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--accent);
+}
+
+@media (max-width: 600px) {
+  .readout {
+    bottom: auto;
+    top: max(110px, calc(env(safe-area-inset-top) + 104px));
+    padding: 4px 10px;
+    min-width: 0;
+  }
+  #speed b {
+    font-size: 24px;
+  }
+  #debug {
+    display: none;
+  }
+}
+
+@media (max-height: 500px) {
+  .readout {
+    bottom: auto;
+    top: max(62px, calc(env(safe-area-inset-top) + 56px));
+    padding: 3px 10px;
+  }
+  #speed b {
+    font-size: 22px;
+  }
+  #stick {
+    bottom: max(20px, env(safe-area-inset-bottom));
+  }
+}

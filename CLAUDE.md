@@ -9,7 +9,7 @@ Low-poly procedural building generator for three.js. Read `plan/README.md` first
   Runtime dependencies: `earcut` and `polyclip-ts` (only via `geom/boolean.ts`).
 - `packages/three` – three.js adapter and worker pool.
 - `packages/osm` – OSM data -> `BuildingInput[]`.
-- `apps/studio`, `apps/viewer` – Vite apps.
+- `apps/studio`, `apps/viewer`, `apps/sim` – Vite apps. The sim needs local data in `apps/sim/data` (see its README).
 - `tools/` – dev tools. `tools/render.ts` renders meshes to PNG without a GPU;
   `pnpm exec tsx tools/sheet.ts <dir>` writes sample sheets. Use these to look at output.
 

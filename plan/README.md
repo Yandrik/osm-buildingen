@@ -32,6 +32,7 @@ This folder is the living design. Update it in the same change as the code.
 | [adapters/vector-tiles.md](adapters/vector-tiles.md) | Vector tile adapter (OpenMapTiles schema): evaluation and implementation |
 | [apps/viewer.md](apps/viewer.md) | OSM area debug viewer |
 | [apps/studio.md](apps/studio.md) | Single-building studio |
+| [apps/sim.md](apps/sim.md) | Bike / car / plane sim over Mapterhorn terrain and Paris OSM data |
 | [05-testing.md](05-testing.md) | Test strategy |
 | [06-milestones.md](06-milestones.md) | Milestones and current status |
 | [07-open-questions.md](07-open-questions.md) | Open questions and deferred topics |
