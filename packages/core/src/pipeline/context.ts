@@ -64,12 +64,13 @@ export function buildContext(
     // A neighbour entirely above or below this building's walls does not touch them.
     .filter((n) => n.minHeight < spec.base + spec.wallHeight - 0.1 && n.height > spec.base + 0.1);
   const roads = (input.roads ?? []).filter((r) => r.line.length >= 2);
-  const openings = new Map<number, { opening: PassageOpening; clear: number }[]>();
+  const openings = new Map<number, { opening: PassageOpening; clear: number; passage: Passage }[]>();
   for (const passage of found) {
     for (const opening of passage.openings) {
+      const entry = { opening, clear: passage.clearHeight, passage };
       const list = openings.get(opening.wall);
-      if (list) list.push({ opening, clear: passage.clearHeight });
-      else openings.set(opening.wall, [{ opening, clear: passage.clearHeight }]);
+      if (list) list.push(entry);
+      else openings.set(opening.wall, [entry]);
     }
   }
 
@@ -141,7 +142,8 @@ export function buildContext(
     // Passages. Where a neighbour stands against the opening (the next part of the same
     // building, a house in the same row) the tunnel goes on behind the wall, so the
     // opening is a plain hole up to the ceiling rather than an arch with a lunette.
-    const passages: PassageSpan[] = (openings.get(w) ?? []).map(({ opening, clear }) => ({
+    const passages: PassageSpan[] = (openings.get(w) ?? []).map(({ opening, clear, passage }) => ({
+      ...(passage.arcade ? { arcade: passage.arcade } : {}),
       from: opening.from,
       to: opening.to,
       height: clear,

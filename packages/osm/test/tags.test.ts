@@ -159,6 +159,14 @@ describe('roadClass', () => {
     expect(roadClass(tags({ highway: 'footway', tunnel: 'building_passage' }))?.passage).toBe(true);
   });
 
+  it('reads covered ways: under the building, under an arcade or a colonnade', () => {
+    expect(roadClass(tags({ highway: 'footway', covered: 'colonnade' }))?.covered).toBe('colonnade');
+    expect(roadClass(tags({ highway: 'footway', covered: 'arcade' }))?.covered).toBe('arcade');
+    expect(roadClass(tags({ highway: 'service', covered: 'yes' }))?.covered).toBe('yes');
+    expect(roadClass(tags({ highway: 'footway', covered: 'no' }))?.covered).toBeUndefined();
+    expect(roadClass(tags({ highway: 'footway', covered: 'partial' }))?.covered).toBeUndefined();
+  });
+
   it('ignores areas, platforms, proposed roads and tunnels', () => {
     expect(roadClass(tags({ highway: 'pedestrian', area: 'yes' }))).toBeUndefined();
     expect(roadClass(tags({ highway: 'platform' }))).toBeUndefined();

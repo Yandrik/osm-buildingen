@@ -113,7 +113,7 @@ export function assemble(
       );
     });
   }
-  if (passages.length > 0) addTunnels(mb, passages, world, palette.wall);
+  if (passages.length > 0) addTunnels(mb, passages, world, palette.wall, palette.glass);
 
   // Level bands and cornice on older buildings (style `trim`).
   if (facade) addTrim({ mb, spec, walls, context, baseElevation, seed });

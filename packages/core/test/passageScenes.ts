@@ -387,4 +387,134 @@ export const PASSAGE_SCENES: PassageScene[] = [
     ],
     solid: [across(9, 10), across(24, 10)],
   },
+  {
+    // A walk under the south facade, 5 m wide (road 4 m + 1 m) from y = -1 to 4: open towards the street.
+    name: 'arcade',
+    input: building(
+      rect(30, 12),
+      [
+        road(
+          [
+            [-10, 1.5],
+            [40, 1.5],
+          ],
+          { covered: 'arcade', passage: false },
+        ),
+      ],
+      { levels: 4 },
+    ),
+    passages: 1,
+    clear: [
+      [
+        [-6, 2],
+        [36, 2],
+      ],
+    ],
+    // The piers stand in the facade line; behind the walk the shops begin.
+    solid: [
+      [
+        [-6, 0.15],
+        [36, 0.15],
+      ],
+      across(15, 12),
+    ],
+  },
+  {
+    // A tagged colonnade along a house below the size where untagged roads count.
+    name: 'colonnade-small',
+    input: building(
+      rect(10, 8),
+      [
+        road(
+          [
+            [-10, 1.5],
+            [20, 1.5],
+          ],
+          { covered: 'colonnade', passage: false, width: 2, kind: 'path' },
+        ),
+      ],
+      { levels: 3 },
+    ),
+    passages: 1,
+    clear: [
+      [
+        [-6, 1.5],
+        [16, 1.5],
+      ],
+    ],
+    solid: [
+      [
+        [-6, 0.1],
+        [16, 0.1],
+      ],
+      across(5, 8),
+    ],
+  },
+  {
+    // A path along the inside of a facade without a tag: an arcade all the same.
+    name: 'arcade-untagged',
+    input: building(rect(30, 12), [
+      road(
+        [
+          [-10, 1.2],
+          [40, 1.2],
+        ],
+        { width: 2, kind: 'path' },
+      ),
+    ]),
+    passages: 1,
+    clear: [
+      [
+        [-6, 1.5],
+        [36, 1.5],
+      ],
+    ],
+    solid: [across(15, 12)],
+  },
+  {
+    // The same path along a party wall: in from the street, along the neighbour, out at the back.
+    name: 'party-wall',
+    input: building(
+      rect(12, 8),
+      [
+        road(
+          [
+            [-10, 1.2],
+            [22, 1.2],
+          ],
+          { width: 2, kind: 'path' },
+        ),
+      ],
+      { neighbours: [{ footprint: { outer: rect(12, 8, 0, -8) }, height: 10 }] },
+    ),
+    passages: 1,
+    clear: [
+      [
+        [-6, 1.4],
+        [18, 1.4],
+      ],
+    ],
+    solid: [across(6, 8), across(4, 8)],
+  },
+  {
+    // A covered way along a narrow house: the corridor takes two thirds of the footprint.
+    name: 'covered-narrow',
+    input: building(rect(14, 4.5), [
+      road(
+        [
+          [-10, 2.25],
+          [24, 2.25],
+        ],
+        { covered: 'yes', passage: false, width: 2, kind: 'path' },
+      ),
+    ]),
+    passages: 1,
+    clear: [
+      [
+        [-6, 2.25],
+        [20, 2.25],
+      ],
+    ],
+    solid: [across(7, 4.5)],
+  },
 ];

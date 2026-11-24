@@ -4,6 +4,7 @@ import {
   type Bounds2,
   type Polygon,
   type Ring,
+  distanceToRing,
   perimeter,
   pointInPolygon,
   polygonArea,
@@ -14,6 +15,7 @@ import { type Vec2, cross, distance, dot, normalize, pointSegment, sub } from '.
 import type { MeshBuilder } from '../mesh/builder';
 import { TUNNEL_CEILING_SHADE, TUNNEL_WALL_SHADE } from '../pieces/arch';
 import type {
+  ArcadeKind,
   BuildingInput,
   Passage,
   PassageOpening,
@@ -33,6 +35,11 @@ import { buildWalls } from './walls';
  * that is a passage when it really leads through: it touches the footprint boundary
  * in at least two separate stretches. Each stretch becomes an opening in the facade,
  * every other edge of the piece a tunnel wall, and the piece itself the ceiling.
+ *
+ * Arcades and colonnades (roads tagged `covered`, or a path running along the inside
+ * of a facade) are the same corridor opened towards the outside: one opening is
+ * enough, the strip between corridor and facade is taken in more generously, and the
+ * clear height is the whole ground storey.
  */
 
 /** Below this footprint area a crossing road only makes a passage when it is flagged as one. */
@@ -70,11 +77,34 @@ const MAX_SHARE = 0.5;
 const ON_WALL = 0.02;
 /** Component along the wall (of a unit vector) from which a tunnel wall counts as oblique. */
 const LEAN = 0.02;
+/** Narrowest arcade walk. */
+const ARCADE_MIN_WIDTH = 3;
+/** Clear height asked for by an arcade: more than any storey, so the ground storey limits it. */
+const ARCADE_CLEAR = 99;
+/** Building left between an arcade corridor and the facade below this thickness is opened up too. */
+const ARCADE_STRIP = 2.2;
+/**
+ * An untagged path counts as an arcade when its corridor opens a single wall over at
+ * least this length and this share of the wall: it runs along the facade, not through it.
+ */
+const ARCADE_MIN_RUN = 6;
+const ARCADE_MIN_SHARE = 0.6;
+/** A tagged covered way may take more of the footprint: the house really stands over it. */
+const COVERED_MAX_SHARE = 0.85;
+/** A wall with a neighbour within this distance in front of it opens into that neighbour, not outside. */
+const NEIGHBOUR_GAP = 0.5;
+/** Step for probing a wall for neighbours. */
+const PROBE = 0.25;
+/** An opening into a neighbour longer than this runs along it rather than leading into it. */
+const ALONG_NEIGHBOUR = 6;
 
 /** A corridor piece known to lead through a building, and the clear height its roads ask for. */
 export interface Corridor {
   polygon: Polygon;
   clear: number;
+  arcade?: ArcadeKind;
+  /** One arch per run of straight walls (see splitAtCorners). */
+  perWall?: boolean;
 }
 
 /** A road line that may lead through the building, with half the corridor width and the clear height it asks for. */
@@ -82,6 +112,17 @@ interface Way {
   line: Vec2[];
   hw: number;
   clear: number;
+  arcade: ArcadeKind | undefined;
+  path: boolean;
+  covered: boolean;
+}
+
+interface Sample {
+  p: Vec2;
+  clear: number;
+  arcade: ArcadeKind | undefined;
+  path: boolean;
+  covered: boolean;
 }
 
 interface SubEdge {
@@ -124,15 +165,21 @@ function candidateWays(roads: readonly RoadInput[], area: number, box: Bounds2):
   const ways: Way[] = [];
   for (const road of roads) {
     if (road.kind === 'rail' || road.line.length < 2) continue;
-    if (!road.passage && area < PASSAGE_MIN_AREA) continue;
+    const covered = road.covered !== undefined;
+    const arcade = road.covered === 'yes' ? undefined : road.covered;
+    if (!road.passage && !covered && area < PASSAGE_MIN_AREA) continue;
     const line = cleanLine(road.line);
     if (line.length < 2 || apart(ringBounds(line), box)) continue;
     const path = road.kind === 'path';
     const widest = path ? MAX_WIDTH_PATH : MAX_WIDTH_ROAD;
+    const narrowest = arcade ? ARCADE_MIN_WIDTH : MIN_WIDTH;
     ways.push({
       line,
-      hw: Math.min(widest, Math.max(MIN_WIDTH, (road.width ?? 3.5) + SIDE_ROOM)) / 2,
-      clear: path ? CLEAR_PATH : CLEAR_ROAD,
+      hw: Math.min(widest, Math.max(narrowest, (road.width ?? 3.5) + SIDE_ROOM)) / 2,
+      clear: arcade ? ARCADE_CLEAR : path ? CLEAR_PATH : CLEAR_ROAD,
+      arcade,
+      path,
+      covered,
     });
   }
   return ways;
@@ -154,7 +201,7 @@ function joinWays(ways: Way[]): Way[] {
       for (let j = i + 1; j < out.length; j++) {
         const a = out[i] as Way;
         const b = out[j] as Way;
-        if (a.hw !== b.hw || a.clear !== b.clear) continue;
+        if (a.hw !== b.hw || a.clear !== b.clear || a.arcade !== b.arcade) continue;
         for (const [ea, pa] of ends(a).entries()) {
           for (const [eb, pb] of ends(b).entries()) {
             if (!near(pa, pb)) continue;
@@ -262,9 +309,9 @@ function roadRects(
   rings: readonly Ring[],
   box: Bounds2,
   rects: Polygon[],
-  samples: { p: Vec2; clear: number }[],
+  samples: Sample[],
 ): void {
-  const { line, hw, clear } = way;
+  const { line, hw, clear, arcade, path, covered } = way;
   const n = line.length - 1;
   const dirs: Vec2[] = [];
   const included: boolean[] = [];
@@ -277,7 +324,7 @@ function roadRects(
     if (!apart(ringBounds([a, b]), box)) {
       const runs = insideRuns(a, b, footprint, rings);
       inside = runs.length > MIN_INSIDE;
-      if (inside) for (const p of runs.mids) samples.push({ p, clear });
+      if (inside) for (const p of runs.mids) samples.push({ p, clear, arcade, path, covered });
     }
     included.push(inside);
     any ||= inside;
@@ -469,6 +516,59 @@ function analyse(piece: Polygon, walls: readonly WallSegment[]): Shape {
 }
 
 const thickness = (piece: Polygon): number => (2 * polygonArea(piece)) / perimeter(piece.outer);
+/** A stretch of an opening that is either open to the outside or faces a neighbour. */
+interface Run {
+  length: number;
+  wall: number;
+  free: boolean;
+}
+
+/**
+ * The openings cut into runs where a neighbour does or does not stand in front of the
+ * wall. An opening against a neighbour leads into that house (a row of houses with one
+ * passage), unless it runs along it: then the corridor merely follows the party wall.
+ */
+function openRuns(shape: Shape, walls: readonly WallSegment[], neighbours: readonly Ring[]): Run[][] {
+  const near = (wall: WallSegment, u: number): boolean => {
+    const p: Vec2 = [
+      wall.a[0] + wall.dir[0] * u + wall.normal[0] * 0.05,
+      wall.a[1] + wall.dir[1] * u + wall.normal[1] * 0.05,
+    ];
+    return neighbours.some((ring) => distanceToRing(p, ring) < NEIGHBOUR_GAP);
+  };
+  return shape.stretches.map((s) => {
+    const runs: Run[] = [];
+    for (const part of s.parts) {
+      const wall = walls[part.wall] as WallSegment;
+      const len = part.to - part.from;
+      const n = Math.max(1, Math.ceil(len / PROBE));
+      for (let i = 0; i < n; i++) {
+        const free = !near(wall, part.from + (len * (i + 0.5)) / n);
+        const last = runs[runs.length - 1];
+        if (last && last.free === free && (free || last.wall === part.wall)) last.length += len / n;
+        else runs.push({ length: len / n, wall: part.wall, free });
+      }
+    }
+    return runs;
+  });
+}
+
+/** Ways out of the corridor: open runs, and runs that lead into a neighbour rather than along it. */
+const exits = (runs: readonly Run[][]): number =>
+  runs.flat().filter((r) => r.length >= MIN_OPENING && (r.free || r.length <= ALONG_NEIGHBOUR)).length;
+
+/** A single open run along one wall for most of its length: the corridor follows the facade. */
+function runsAlongWall(runs: readonly Run[][], walls: readonly WallSegment[]): boolean {
+  return runs
+    .flat()
+    .some(
+      (r) =>
+        r.free &&
+        r.length >= ARCADE_MIN_RUN &&
+        r.length >= ARCADE_MIN_SHARE * (walls[r.wall] as WallSegment).length,
+    );
+}
+
 const isSliver = (piece: Polygon): boolean =>
   polygonArea(piece) < MIN_AREA || thickness(piece) < MIN_THICKNESS;
 
@@ -479,10 +579,11 @@ const isSliver = (piece: Polygon): boolean =>
  * footway under an arcade, or along a house whose outline is drawn too wide.)
  * Returns null when the clipper fails.
  */
-function absorbThinWalls(piece: Polygon, footprint: Polygon): Polygon | null {
+function absorbThinWalls(piece: Polygon, footprint: Polygon, limit = MIN_PIER): Polygon | null {
   const rest = difference(footprint, [piece]);
   if (!rest) return null;
-  const thin = rest.filter((r) => thickness(r) < MIN_PIER);
+  // Only strips: a whole small building part left beside the corridor stays.
+  const thin = rest.filter((r) => thickness(r) < limit && polygonArea(r) < 0.5 * polygonArea(footprint));
   if (thin.length === 0) return piece;
   const merged = union([piece, ...thin]);
   if (!merged) return null;
@@ -500,6 +601,8 @@ function throughCorridors(
   area: number,
   walls: () => readonly WallSegment[],
   notes: string[],
+  implied: ArcadeKind,
+  neighbours: readonly Ring[],
 ): Found[] {
   const rings = [footprint.outer, ...(footprint.holes ?? [])];
   const box = ringBounds(footprint.outer);
@@ -507,7 +610,7 @@ function throughCorridors(
   if (ways.length === 0) return [];
   if (ways.length > 1) ways = joinWays(ways);
   const rects: Polygon[] = [];
-  const samples: { p: Vec2; clear: number }[] = [];
+  const samples: Sample[] = [];
   for (const way of ways) roadRects(way, footprint, rings, box, rects, samples);
   if (rects.length === 0) return [];
 
@@ -526,20 +629,48 @@ function throughCorridors(
     }
     for (const clipped of pieces) {
       // Mostly corridor: a gate, a roof or a kiosk standing in the way rather than a house with a passage.
-      if (isSliver(clipped) || polygonArea(clipped) > MAX_SHARE * area) continue;
+      if (isSliver(clipped)) continue;
       // A piece no road line runs through is the far end of a lengthened corridor, or its edge clipping a corner.
       let clear = 0;
-      for (const s of samples) if (s.clear > clear && pointInPolygon(s.p, clipped)) clear = s.clear;
+      let arcade: ArcadeKind | undefined;
+      let path = false;
+      let covered = false;
+      for (const s of samples) {
+        if (!pointInPolygon(s.p, clipped)) continue;
+        if (s.clear > clear) clear = s.clear;
+        arcade ??= s.arcade;
+        path ||= s.path;
+        covered ||= s.covered;
+      }
       if (clear === 0) continue;
-      const piece = absorbThinWalls(clipped, footprint);
+      const share = covered ? COVERED_MAX_SHARE : MAX_SHARE;
+      if (polygonArea(clipped) > share * area) continue;
+      const piece = absorbThinWalls(clipped, footprint, arcade ? ARCADE_STRIP : MIN_PIER);
       if (!piece) {
         notes.push('passage: could not clean up a road corridor, not cut');
         continue;
       }
-      if (polygonArea(piece) > MAX_SHARE * area) continue;
+      if (polygonArea(piece) > share * area) continue;
       const shape = analyse(piece, walls());
-      if (shape.stretches.filter((s) => s.length >= MIN_OPENING).length < 2) continue;
-      out.push({ polygon: piece, clear, shape });
+      const openings = shape.stretches.filter((s) => s.length >= MIN_OPENING).length;
+      if (arcade) {
+        if (openings === 0) continue;
+      } else if (openings < 2) {
+        if (openings === 0) continue;
+        const runs = openRuns(shape, walls(), neighbours);
+        // Along a party wall the corridor may touch the outline from end to end and still
+        // be a passage: in from the street, along the neighbour, out at the back.
+        if (exits(runs) < 2) {
+          // A footway along the inside of a facade, open to the street: an arcade nobody tagged.
+          if (!path || !runsAlongWall(runs, walls())) continue;
+          arcade = implied;
+          clear = ARCADE_CLEAR;
+        } else {
+          out.push({ polygon: piece, clear, shape, perWall: true });
+          continue;
+        }
+      }
+      out.push({ polygon: piece, clear, shape, ...(arcade ? { arcade } : {}) });
     }
   }
   return out;
@@ -563,18 +694,34 @@ function clipCorridors(
     }
     for (const clipped of pieces) {
       if (isSliver(clipped)) continue;
-      const piece = absorbThinWalls(clipped, footprint);
+      const piece = absorbThinWalls(clipped, footprint, corridor.arcade ? ARCADE_STRIP : MIN_PIER);
       if (!piece) {
         notes.push('passage: could not clean up a road corridor, not cut');
         continue;
       }
       const shape = analyse(piece, walls);
       // Without any opening the piece would be a sealed room.
-      if (shape.stretches.length > 0) out.push({ polygon: piece, clear: corridor.clear, shape });
+      if (shape.stretches.length > 0)
+        out.push({
+          polygon: piece,
+          clear: corridor.clear,
+          shape,
+          ...(corridor.arcade ? { arcade: corridor.arcade } : {}),
+          ...(corridor.perWall ? { perWall: true } : {}),
+        });
     }
   }
   return out;
 }
+
+/**
+ * Arcade style for a path found running along the facade without a tag: round arches
+ * on older buildings, columns under a beam on newer ones.
+ */
+const impliedArcade = (spec: ResolvedSpec): ArcadeKind => (spec.era < 0.5 ? 'arcade' : 'colonnade');
+
+const neighbourRings = (input: BuildingInput): Ring[] =>
+  (input.neighbours ?? []).filter((n) => n.footprint.outer.length >= 3).map((n) => n.footprint.outer);
 
 /**
  * Corridors through a building that is built from parts, found on its outline.
@@ -593,7 +740,14 @@ export function buildingCorridors(input: BuildingInput, spec: ResolvedSpec): Cor
       return walls;
     },
     spec.notes,
-  ).map((f) => ({ polygon: f.polygon, clear: f.clear }));
+    impliedArcade(spec),
+    neighbourRings(input),
+  ).map((f) => ({
+    polygon: f.polygon,
+    clear: f.clear,
+    ...(f.arcade ? { arcade: f.arcade } : {}),
+    ...(f.perWall ? { perWall: true } : {}),
+  }));
 }
 
 /**
@@ -613,7 +767,15 @@ export function findPassages(
   if (given ? given.length === 0 : !input.roads || input.roads.length === 0) return [];
   const found = given
     ? clipCorridors(given, spec.footprint, walls, spec.notes)
-    : throughCorridors(input.roads ?? [], spec.footprint, spec.metrics.area, () => walls, spec.notes);
+    : throughCorridors(
+        input.roads ?? [],
+        spec.footprint,
+        spec.metrics.area,
+        () => walls,
+        spec.notes,
+        impliedArcade(spec),
+        neighbourRings(input),
+      );
   if (found.length === 0) return [];
 
   const ground = spec.levelHeights[0] ?? 0;
@@ -626,15 +788,61 @@ export function findPassages(
       spec.notes.push(`passage: ground level of ${ground.toFixed(1)} m is too low for an opening, not cut`);
       continue;
     }
+    const openings = f.shape.stretches.flatMap((s) => s.parts);
+    if (f.arcade) {
+      // Bays are laid out wall by wall.
+      for (const o of openings) {
+        o.openFrom = o.from;
+        o.openTo = o.to;
+      }
+    } else if (f.perWall) {
+      for (const s of f.shape.stretches) splitAtCorners(s.parts, walls);
+    }
     out.push({
       polygon: [...f.polygon.outer],
       holes: (f.polygon.holes ?? []).map((h) => [...h]),
       clearHeight,
-      openings: f.shape.stretches.flatMap((s) => s.parts),
+      openings,
       sides: f.shape.sides,
+      ...(f.arcade ? { arcade: f.arcade } : {}),
     });
   }
   return out;
+}
+
+/** Walls meeting at less than this turn (cosine) carry one arch together. */
+const STRAIGHT_ON = 0.87;
+
+/**
+ * Gives each run of nearly collinear walls of an opening its own arch: a passage that
+ * enters from the street and then follows a party wall should not hang one long arch
+ * around the corner, but a wall split by a node in the street front keeps one arch.
+ */
+function splitAtCorners(parts: PassageOpening[], walls: readonly WallSegment[]): void {
+  let group: PassageOpening[] = [];
+  const flush = (): void => {
+    const length = group.reduce((sum, p) => sum + (p.to - p.from), 0);
+    let offset = 0;
+    for (const p of group) {
+      p.openFrom = p.from - offset;
+      p.openTo = p.openFrom + length;
+      offset += p.to - p.from;
+    }
+    group = [];
+  };
+  for (const p of parts) {
+    const last = group[group.length - 1];
+    if (
+      last &&
+      dot((walls[last.wall] as WallSegment).dir, (walls[p.wall] as WallSegment).dir) < STRAIGHT_ON
+    ) {
+      last.capTo = true;
+      p.capFrom = true;
+      flush();
+    }
+    group.push(p);
+  }
+  flush();
 }
 
 /**
@@ -646,19 +854,54 @@ export function addTunnels(
   passages: readonly Passage[],
   world: (p: Vec2, h: number) => Vec3,
   wall: Colour,
+  glass: Colour,
 ): void {
   const side = shade(wall, TUNNEL_WALL_SHADE);
   const ceiling = shade(wall, TUNNEL_CEILING_SHADE);
   for (const p of passages) {
     const h = p.clearHeight;
     // The inside of the piece is on the left of each edge, so the face is wound backwards.
-    for (const [a, b] of p.sides) mb.quad(world(b, 0), world(a, 0), world(a, h), world(b, h), side);
+    for (const [a, b] of p.sides) {
+      mb.quad(world(b, 0), world(a, 0), world(a, h), world(b, h), side);
+      // Behind an arcade lies the real ground-floor front: shop windows along it.
+      if (p.arcade) shopWindows(mb, a, b, h, world, glass);
+    }
     const at = (q: Vec2): Vec3 => world(q, h);
     mb.polygon(
       [...p.polygon].reverse().map(at),
       ceiling,
       p.holes.map((hole) => [...hole].reverse().map(at)),
     );
+  }
+}
+
+const SHOP_BAY = 2.6;
+const SHOP_PIER = 0.25;
+const SHOP_SILL = 0.25;
+const SHOP_HEAD = 0.5;
+const SHOP_PROUD = 0.02;
+
+/** Glazed panes along the back wall of an arcade walk, from a to b (walk on the left). */
+function shopWindows(
+  mb: MeshBuilder,
+  a: Vec2,
+  b: Vec2,
+  clear: number,
+  world: (p: Vec2, h: number) => Vec3,
+  glass: Colour,
+): void {
+  const len = distance(a, b);
+  const top = Math.min(clear - SHOP_HEAD, 2.8);
+  if (len < 1.6 || top - SHOP_SILL < 1) return;
+  const d = normalize(sub(b, a));
+  const n: Vec2 = [-d[1] * SHOP_PROUD, d[0] * SHOP_PROUD];
+  const at = (u: number): Vec2 => [a[0] + d[0] * u + n[0], a[1] + d[1] * u + n[1]];
+  const count = Math.max(1, Math.round(len / SHOP_BAY));
+  const bay = len / count;
+  for (let i = 0; i < count; i++) {
+    const p = at(i * bay + SHOP_PIER);
+    const q = at((i + 1) * bay - SHOP_PIER);
+    mb.quad(world(q, SHOP_SILL), world(p, SHOP_SILL), world(p, top), world(q, top), glass);
   }
 }
 

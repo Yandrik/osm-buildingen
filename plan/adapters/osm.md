@@ -142,7 +142,8 @@ does not depend on element order.
    footprint's bounding box + 40 m, pieces farther than 40 m from the outline
    are dropped, nearest 12 kept. `passage` when the piece runs through the
    footprint's interior (not along a wall), or for `tunnel=building_passage`
-   within 1 m.
+   within 1 m. `covered=yes|arcade|colonnade` is passed on as `covered`
+   (other values such as `partial` are ignored).
    Widths (`src/roads.ts`): `width` tag > `lanes × 3 m` > class default:
    motorway 20, trunk 14, primary 10, secondary 8, tertiary 7, *_link 5,
    unclassified/residential/road/busway 6, living_street 5, service 4, track 3

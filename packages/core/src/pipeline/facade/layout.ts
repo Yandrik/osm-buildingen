@@ -179,6 +179,7 @@ export function layoutFacade(
             endTo: span.to <= cell.x + cell.width + 1e-6,
             capFrom: span.capFrom && span.from >= cell.x - 1e-6,
             capTo: span.capTo && span.to <= cell.x + cell.width + 1e-6,
+            ...(span.arcade ? { arcade: span.arcade } : {}),
           };
           if (cell.passage) cell.passage.push(opening);
           else cell.passage = [opening];

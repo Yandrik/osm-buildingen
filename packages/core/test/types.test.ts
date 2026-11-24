@@ -537,7 +537,9 @@ describe('trim on older buildings', () => {
   it('puts bands on old buildings of the listed types only', () => {
     for (const type of ['house', 'townhouse', 'apartments', 'office', 'station'] as BuildingType[]) {
       let old = 0;
-      for (let s = 0; s < 20; s++) {
+      // Enough seeds for a stable share: about half of the old houses (fewer for timber-heavy types) get bands.
+      const seeds = 60;
+      for (let s = 0; s < seeds; s++) {
         const levels = 3;
         const input = {
           type,
@@ -557,7 +559,7 @@ describe('trim on older buildings', () => {
         expect(bandTops(generateBuilding(base({ ...input, year: 1985 }))), `${type} ${s}`).toEqual([]);
       }
       // Timber-framed houses go without, so not every old one has bands.
-      expect(old, type).toBeGreaterThan(8);
+      expect(old, type).toBeGreaterThan(seeds / 4);
     }
     for (const type of ['industrial', 'store', 'skyscraper', 'garage'] as BuildingType[]) {
       for (let s = 0; s < 10; s++)

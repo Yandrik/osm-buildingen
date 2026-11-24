@@ -41,8 +41,8 @@ Road kind matters: `road` counts fully, `path` half, `rail` only for stations
 A passage is a road that runs through the building at ground level. It is a
 real opening: you can see and drive through it. Code: `pipeline/passages.ts`.
 
-1. **Which roads.** Roads flagged `passage`, or any road crossing a footprint
-   of 300 m² or more. Rail lines never. A road merely clipping the corner of
+1. **Which roads.** Roads flagged `passage` or `covered`, or any road crossing a
+   footprint of 300 m² or more. Rail lines never. A road merely clipping the corner of
    a small house is a mapping inaccuracy and is ignored.
 2. **Corridor.** The road line is widened to the passage width (road width
    plus 1 m, at least 2.4 m, at most 8 m for roads and 4.5 m for paths) and
@@ -50,7 +50,16 @@ real opening: you can see and drive through it. Code: `pipeline/passages.ts`.
 3. **Is it a passage?** Only if the corridor piece touches the footprint
    boundary in at least two separate stretches: street to street, or street
    to courtyard. Dead ends, corner clips and slivers give nothing.
-   Overlapping corridors are merged.
+   Overlapping corridors are merged. A corridor takes at most half the
+   footprint (else it is a gate or kiosk in the road), 85 % for a road tagged
+   `covered`: the mapper says the house stands over it.
+   A corridor that touches the outline in one stretch is cut where neighbours
+   (within 0.5 m) stand in front of the walls. A run against a neighbour of
+   at most 6 m leads into that house; a longer one merely follows the party
+   wall. Two ways out (open runs, or runs into a neighbour) make it a passage
+   after all: in from the street, along the party wall, out at the back. Its
+   arches are then split at corners (walls turning by more than 30°), so the
+   street end does not hang one arch around the corner along the party wall.
 4. **Openings.** Each stretch where the corridor meets a wall becomes an
    opening in that wall (`WallContext.passages`). The facade stage turns the
    ground cells there into arch cells, so arch and tunnel line up exactly.
@@ -70,13 +79,30 @@ real opening: you can see and drive through it. Code: `pipeline/passages.ts`.
    a passage through two parts is continuous. Parts starting above the
    ground are not cut.
 8. **Massing detail.** The same tunnel with a plain rectangular opening.
+9. **Arcades and colonnades.** A road tagged `covered=arcade|colonnade`
+   (`RoadInput.covered`) is the same corridor opened to the street: one
+   opening is enough, its corridor is at least 3 m wide, building left
+   between it and the facade thinner than 2.2 m is opened too, and the clear
+   height is the whole ground storey minus the 0.3 m slab. An untagged path
+   whose single opening runs, free of neighbours, along one wall for at least
+   6 m and 60 % of its length is an arcade too (arches on old buildings,
+   era < 0.5, else a colonnade). The facade stage marks the cells
+   (`FacadeOpening.arcade`) and the arch piece draws one bay per cell: a
+   pier (0.6 m) or column (0.36 m) where two bays meet (half in each cell), a
+   whole one where the arcade reaches the end of the wall, a round arch
+   (arcade) or a straight beam with a band (colonnade) between. Bays
+   narrower than 0.9 m stay closed. Openings against a neighbour stay plain
+   holes, so a row of houses shares one walk. The back wall of the walk gets
+   shop windows (2.6 m bays). `Passage.arcade` says which.
 
 The passages are listed in `BuildingDebug.passages` (polygon, clear height,
 openings).
 
-In the Ulm fixture the adapter flags roads at 44 buildings; 19 of them get a
-real passage (20 in total). The rest are footways under canopies and arcades
-or roads that only touch a corner.
+In the Ulm fixture the adapter flags roads at 44 buildings; 34 of them get a
+passage (40 in total, 13 of them arcades or colonnades on 11 buildings, e.g.
+the colonnade along the west side of Münsterplatz, tagged
+`covered=colonnade`). The rest are footways under canopies or roads that only
+touch a corner.
 
 ## Cost
 

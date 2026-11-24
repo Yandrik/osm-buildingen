@@ -101,7 +101,15 @@ export interface RoadInput {
   kind?: 'road' | 'path' | 'rail';
   /** True when the road is known to pass through the building. */
   passage?: boolean;
+  /**
+   * The way is covered by the building (OSM `covered=*`): `yes` under it, `arcade`
+   * (arches on piers) or `colonnade` (columns under a flat beam) along its facade,
+   * open to the outside on at least one side.
+   */
+  covered?: 'yes' | ArcadeKind;
 }
+
+export type ArcadeKind = 'arcade' | 'colonnade';
 
 export interface StyleInput {
   region: Region;
@@ -376,6 +384,8 @@ export interface Passage {
   openings: PassageOpening[];
   /** Edges of the outline that get a tunnel wall; all others lie in an opening. */
   sides: [Vec2, Vec2][];
+  /** Set when the corridor is an arcade along the facade: its openings become rows of bays. */
+  arcade?: ArcadeKind;
 }
 
 /** A passage opening on a wall as the facade stage sees it; `height` is the clear height. */
@@ -386,6 +396,8 @@ export interface PassageSpan extends Span {
   capTo: boolean;
   /** Plain rectangular hole up to the tunnel ceiling instead of an arch (party walls). */
   flat: boolean;
+  /** One bay per facade cell (arches on piers, or columns under a beam) instead of one arch. */
+  arcade?: ArcadeKind;
 }
 
 /** A passage opening inside one facade cell, in cell-local metres. */
@@ -402,6 +414,8 @@ export interface FacadeOpening {
   /** Close the wall thickness at that end (see PassageOpening); only set together with the end. */
   capFrom: boolean;
   capTo: boolean;
+  /** See PassageSpan. */
+  arcade?: ArcadeKind;
 }
 
 export interface FacadeLayout {

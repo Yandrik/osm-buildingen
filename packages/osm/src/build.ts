@@ -416,6 +416,7 @@ export function buildInputs(data: OsmData, options: BuildOptions): BuildResult {
           kind: cls.kind,
           class: cls.class,
           ...(cls.passage ? { passage: true } : {}),
+          ...(cls.covered ? { covered: cls.covered } : {}),
         });
       }
       line = [];
@@ -555,6 +556,7 @@ export function buildInputs(data: OsmData, options: BuildOptions): BuildResult {
         const distance = pieceDistance(piece, s);
         if (distance > ROAD_DISTANCE) continue;
         const road: RoadInput = { line: piece, width: r.width, kind: r.kind };
+        if (r.covered) road.covered = r.covered;
         const crosses = crossesInterior(piece, s);
         if (crosses || (r.passage && distance < 1)) road.passage = true;
         found.push({ road, distance, osmId: r.osmId });

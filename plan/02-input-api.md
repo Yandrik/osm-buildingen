@@ -28,7 +28,7 @@ interface BuildingInput {
   balconies?: boolean;                // force / forbid balconies where the type has them
   entrance?: boolean;                 // false = no entrance door
   neighbours?: NeighbourInput[];      // { footprint, height?, minHeight?, sameGroup? }
-  roads?: RoadInput[];                // { line, width?, kind?, passage? }
+  roads?: RoadInput[];                // { line, width?, kind?, passage?, covered?: 'yes'|'arcade'|'colonnade' }
   groupKey?: string;                  // same key -> same palette and style
   style: { region: 'de' | 'us'; modernity: number; pack?: string };
   seed: string | number;

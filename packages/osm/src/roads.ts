@@ -53,6 +53,8 @@ export interface RoadClass {
   width: number;
   /** `tunnel=building_passage`. */
   passage: boolean;
+  /** `covered=yes|arcade|colonnade`: the way runs under a building, or under its arcade. */
+  covered?: 'yes' | 'arcade' | 'colonnade';
 }
 
 /**
@@ -92,5 +94,7 @@ export function roadClass(tags: Tags): RoadClass | undefined {
     if (lanes !== undefined && lanes > 0) width = lanes * LANE_WIDTH;
   }
   if (width === undefined || width <= 0 || width > 100) width = base;
-  return { kind, class: cls, width, passage };
+  const c = tags.covered;
+  const covered = c === 'yes' || c === 'arcade' || c === 'colonnade' ? c : undefined;
+  return { kind, class: cls, width, passage, ...(covered && kind !== 'rail' ? { covered } : {}) };
 }

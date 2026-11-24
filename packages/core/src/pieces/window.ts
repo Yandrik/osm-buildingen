@@ -117,7 +117,8 @@ export const window: Piece = (mb, f, ctx) => {
     // Horizontal bars sit in the upper part, like a transom.
     const v =
       arched && i === nh ? vTop : nh === 1 ? v0 + (v1 - v0) * 0.68 : v0 + ((vTop - v0) * i) / (nh + 1);
-    box(mb, f, u0, v - bar / 2, u1, v + bar / 2, -depth, -depth + 0.03, barColour, {
+    // A little behind the vertical bars, so their fronts do not share a plane where they cross.
+    box(mb, f, u0, v - bar / 2, u1, v + bar / 2, -depth, -depth + 0.025, barColour, {
       left: false,
       right: false,
     });

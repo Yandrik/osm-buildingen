@@ -326,6 +326,36 @@ describe('passages', () => {
     expect(door?.openings).toBeUndefined();
   });
 
+  it('turns walks along a facade into arcades, but not passages along a party wall', () => {
+    const kind = (name: string): (string | undefined)[] =>
+      passagesOf(generateBuilding(scene(name).input)).map((p) => p.arcade);
+    expect(kind('arcade')).toEqual(['arcade']);
+    expect(kind('colonnade-small')).toEqual(['colonnade']);
+    expect(kind('arcade-untagged')).toHaveLength(1);
+    expect(kind('arcade-untagged')[0]).toBeDefined();
+    expect(kind('party-wall')).toEqual([undefined]);
+    expect(kind('covered-narrow')).toEqual([undefined]);
+
+    // Arcade bays fill the ground row along the walk; the storeys above keep their windows.
+    const arcade = generateBuilding(scene('arcade').input).debug as BuildingDebug;
+    const south = arcade.facade?.cells.filter((c) => c.wall === 0) ?? [];
+    for (const c of south) {
+      if (c.row === 0) expect(c.openings?.[0]?.arcade).toBe('arcade');
+      else expect(c.openings).toBeUndefined();
+    }
+    expect(south.some((c) => c.row > 0 && c.role === 'window')).toBe(true);
+    // The walk takes the whole ground storey, minus the slab.
+    const p = arcade.passages[0] as Passage;
+    expect(p.clearHeight).toBeCloseTo((arcade.spec.levelHeights[0] as number) - 0.3, 6);
+
+    // Along the party wall: a plain opening against the neighbour, and the street end does not
+    // share one long arch with it around the corner.
+    const party = generateBuilding(scene('party-wall').input).debug as BuildingDebug;
+    const spans = party.context.flatMap((c) => c.passages);
+    expect(spans.find((sp) => sp.to - sp.from > 10)?.flat).toBe(true);
+    for (const sp of spans) expect(sp.openTo - sp.openFrom).toBeLessThan(13);
+  });
+
   it('cuts through the wall between two parts and uses plain openings there', () => {
     const mesh = generateBuilding(scene('parts-across').input);
     const [tall, low] = partsOf(mesh);
