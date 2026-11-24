@@ -315,7 +315,13 @@ export function createControls(
     check('showNeighbours', 'neighbour links of the selection'),
 
     h('h3', {}, 'View'),
-    h('div', { class: 'checks' }, check('shadows', 'shadows'), check('fog', 'fog')),
+    h(
+      'div',
+      { class: 'checks' },
+      check('shadows', 'shadows'),
+      check('fog', 'fog'),
+      check('showTrees', 'trees', 'Mapped trees, tree rows and forest/wood areas from the loaded data'),
+    ),
     row(
       'theme',
       select('theme', [

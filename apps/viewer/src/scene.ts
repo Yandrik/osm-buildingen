@@ -1,5 +1,5 @@
 /**
- * three.js setup: renderer, camera and controls, lights, ground, roads, and the
+ * three.js setup: renderer, camera and controls, lights, ground, roads, trees, and the
  * tile meshes (one merged mesh per tile, all sharing one material).
  *
  * Input frame (x east, y north) maps to three as (x, height, -y).
@@ -11,23 +11,31 @@ import type { MapRoad } from '@osm-buildingen/osm';
 export type RoadLine = Pick<MapRoad, 'line' | 'width' | 'kind'>;
 import { type BuildingRange, createBuildingMaterial } from '@osm-buildingen/three';
 import {
+  BufferAttribute,
   type BufferGeometry,
   Color,
+  ConeGeometry,
+  CylinderGeometry,
   DirectionalLight,
   Fog,
   Group,
   HemisphereLight,
+  IcosahedronGeometry,
+  InstancedMesh,
   type Material,
+  Matrix4,
   Mesh,
   MeshLambertMaterial,
   PCFSoftShadowMap,
   PerspectiveCamera,
   PlaneGeometry,
+  Quaternion,
   Scene,
   Vector3,
   WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { cssVar } from './dom';
 import { type Rgb, type Strip, hexToRgb, stripGeometry } from './strips';
 import type { Level } from './tiles';
@@ -71,6 +79,8 @@ export interface SceneView {
   /** Moves the target to a point, keeping the view direction. */
   focus(point: Vec2, radius: number): void;
   setRoads(roads: readonly RoadLine[]): void;
+  /** x, y, scale per tree (input frame); null removes them. */
+  setTrees(points: Float32Array | null): void;
   addTile(view: TileView): void;
   removeTile(key: string): void;
   tiles(): ReadonlyMap<string, TileView>;
@@ -125,6 +135,10 @@ export function createScene(container: HTMLElement): SceneView {
   });
   let roadMesh: Mesh | null = null;
   let roads: readonly RoadLine[] = [];
+
+  const treeGeometry = createTreeGeometry();
+  const treeMaterial = new MeshLambertMaterial({ vertexColors: true });
+  let treeMesh: InstancedMesh | null = null;
 
   const buildingMaterial = createBuildingMaterial();
   const tileGroup = new Group();
@@ -281,6 +295,40 @@ export function createScene(container: HTMLElement): SceneView {
       roads = next;
       rebuildRoads();
     },
+    setTrees(points) {
+      if (treeMesh) {
+        scene.remove(treeMesh);
+        treeMesh.dispose();
+        treeMesh = null;
+      }
+      const count = points ? Math.floor(points.length / 3) : 0;
+      if (!points || count === 0) return;
+      const mesh = new InstancedMesh(treeGeometry, treeMaterial, count);
+      const m = new Matrix4();
+      const q = new Quaternion();
+      const up = new Vector3(0, 1, 0);
+      const p = new Vector3();
+      const sc = new Vector3();
+      const c = new Color();
+      for (let i = 0; i < count; i++) {
+        const x = points[i * 3] as number;
+        const y = points[i * 3 + 1] as number;
+        const k = points[i * 3 + 2] as number;
+        // Rotation, height and tint vary with the position so the look is stable across rebuilds.
+        const v = Math.abs(Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1;
+        q.setFromAxisAngle(up, v * Math.PI * 2);
+        p.set(x, 0, -y);
+        sc.set(k, k * (0.85 + v * 0.4), k);
+        mesh.setMatrixAt(i, m.compose(p, q, sc));
+        mesh.setColorAt(i, c.setHSL(0.24 + v * 0.06, 0.45, 0.85 + v * 0.15));
+      }
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.computeBoundingSphere();
+      mesh.name = 'trees';
+      treeMesh = mesh;
+      scene.add(mesh);
+    },
     addTile(view) {
       const old = tileViews.get(view.key);
       if (old) disposeTile(old);
@@ -302,7 +350,8 @@ export function createScene(container: HTMLElement): SceneView {
     setShadows(on) {
       renderer.shadowMap.enabled = on;
       sun.castShadow = on;
-      for (const m of [buildingMaterial, groundMaterial, roadMaterial] as Material[]) m.needsUpdate = true;
+      for (const m of [buildingMaterial, groundMaterial, roadMaterial, treeMaterial] as Material[])
+        m.needsUpdate = true;
     },
     setFog(on) {
       fogOn = on;
@@ -314,4 +363,27 @@ export function createScene(container: HTMLElement): SceneView {
     },
     renderStats: () => ({ calls, triangles, fps }),
   };
+}
+
+/** Low-poly tree about 8 m tall: trunk, faceted crown and a small cone on top. */
+function createTreeGeometry(): BufferGeometry {
+  const trunk = new CylinderGeometry(0.22, 0.3, 2.6, 5).toNonIndexed();
+  trunk.translate(0, 1.3, 0);
+  const crown = new IcosahedronGeometry(2.4, 0).toNonIndexed();
+  crown.scale(1, 1.25, 1);
+  crown.translate(0, 4.6, 0);
+  const top = new ConeGeometry(1.6, 2.4, 6).toNonIndexed();
+  top.translate(0, 6.6, 0);
+  const paint = (g: BufferGeometry, colour: string): BufferGeometry => {
+    const c = new Color(colour);
+    const count = g.getAttribute('position').count;
+    const arr = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) arr.set([c.r, c.g, c.b], i * 3);
+    g.setAttribute('color', new BufferAttribute(arr, 3));
+    g.deleteAttribute('uv');
+    return g;
+  };
+  const merged = mergeGeometries([paint(trunk, '#7a5a3a'), paint(crown, '#4f9a3e'), paint(top, '#5aa646')]);
+  merged.computeVertexNormals();
+  return merged;
 }

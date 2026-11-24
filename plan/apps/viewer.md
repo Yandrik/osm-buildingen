@@ -70,6 +70,17 @@ studio keeps 5173 / 4173. `?sample` in the URL loads the bundled extract at star
   triangles, vertices, draw calls, FPS, ten slowest tiles, ten slowest buildings
   (from debug timings, or from a "Profile run" that generates every building on the
   main thread in 30 ms slices), failed buildings (OSM id + message, clickable).
+- **Trees** ("trees" under View, on by default): Overpass loads always ask for
+  trees too (`fetchOverpass(…, { trees: true })`), vector tiles also decode
+  `landcover`, so the toggle needs no reload. The data worker places them
+  (`trees.ts`) once per origin and clip: `natural=tree` nodes, `natural=tree_row`
+  every 8 m, and `landuse=forest` / `natural=wood` ways and complete
+  multipolygons filled on a global 11 m grid with hashed jitter (even-odd test on
+  the member segments, no ring assembly; cells are deduplicated, so overlapping
+  areas and buffered tile copies do not double up). Vector tiles have no single
+  trees, only `landcover` class `wood`. Clipped to the load bbox or the file's
+  bounds, at most 150,000 trees; drawn as one `InstancedMesh` of a low-poly tree
+  (the sim's shape), not pickable. The area line shows the count.
 - Light/dark theme follows the system or is forced; colours share the studio's
   variable names.
 
@@ -82,7 +93,7 @@ results, labels, selection matching), `data.ts` + `data-worker.ts` +
 `test/tiles.test.ts`, run with `pnpm --filter @osm-buildingen/viewer test`),
 `generation.ts` (scheduler + pool + merge + stats), `generator.ts` (pool, worker
 URL), `scene.ts`, `strips.ts`, `picking.ts`, `overlays.ts`, `analysis.ts`,
-`profile.ts`, `permalink.ts`, `panel-controls.ts`, `panel-inspector.ts`,
+`profile.ts`, `trees.ts` (tested in `test/trees.test.ts`), `permalink.ts`, `panel-controls.ts`, `panel-inspector.ts`,
 `panel-stats.ts`, `dom.ts` (copied from the studio).
 
 The generator worker is created with

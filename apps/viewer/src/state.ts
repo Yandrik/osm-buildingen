@@ -41,6 +41,8 @@ export interface Settings {
   debugGeneration: boolean;
   shadows: boolean;
   fog: boolean;
+  /** Mapped trees and wooded areas (OSM; vector tiles: landcover wood only). */
+  showTrees: boolean;
   theme: ThemeMode;
   areaMode: AreaMode;
   bboxText: string;
@@ -67,6 +69,7 @@ export const DEFAULT_SETTINGS: Settings = {
   debugGeneration: false,
   shadows: false,
   fog: false,
+  showTrees: true,
   theme: 'auto',
   areaMode: 'bbox',
   bboxText: '9.98813,48.39654,9.99593,48.40006',
@@ -121,6 +124,7 @@ export function sanitizeSettings(value: unknown): Settings {
     debugGeneration: bool(v.debugGeneration, d.debugGeneration),
     shadows: bool(v.shadows, d.shadows),
     fog: bool(v.fog, d.fog),
+    showTrees: bool(v.showTrees, d.showTrees),
     theme: pick(v.theme, ['auto', 'light', 'dark'], d.theme),
     areaMode: pick(v.areaMode, ['bbox', 'centre'], d.areaMode),
     bboxText: str(v.bboxText, d.bboxText),

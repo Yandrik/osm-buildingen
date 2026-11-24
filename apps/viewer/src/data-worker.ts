@@ -4,12 +4,21 @@
  * `buildInputsFromTiles` (vector tiles). It keeps the parsed data so a style or
  * seed change only posts the build options, never the data.
  */
-import { type OsmData, buildInputs, parseOsmXml, parseOverpassJson } from '@osm-buildingen/osm';
+import {
+  type LatLon,
+  type LatLonBBox,
+  type OsmData,
+  buildInputs,
+  createProjection,
+  parseOsmXml,
+  parseOverpassJson,
+} from '@osm-buildingen/osm';
 import { OverpassError, fetchOverpass } from '@osm-buildingen/osm/overpass';
-import { type DecodedTile, buildInputsFromTiles } from '@osm-buildingen/vector-tiles';
+import { type DecodedTile, OPENMAPTILES_LAYERS, buildInputsFromTiles } from '@osm-buildingen/vector-tiles';
 import { TileFetchError, fetchTiles } from '@osm-buildingen/vector-tiles/fetch';
 import type { AreaBuild } from './area-build';
 import type { DataRequest, DataResponse, DataSource, LoadSummary } from './data-protocol';
+import { type Rect, osmTrees, tileTrees } from './trees';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -44,7 +53,12 @@ async function load(id: number, source: DataSource): Promise<void> {
     let summary: LoadSummary;
     if (source.kind === 'overpass') {
       post({ kind: 'progress', id, message: 'Waiting for Overpass…' });
-      const next = await fetchOverpass(source.bbox, { endpoint: source.endpoint, signal: controller.signal });
+      // Trees are always fetched so the "trees" toggle works without a reload.
+      const next = await fetchOverpass(source.bbox, {
+        endpoint: source.endpoint,
+        signal: controller.signal,
+        trees: true,
+      });
       // fetchOverpass parses internally; the split between download and parse is not visible.
       const t1 = performance.now();
       data = { kind: 'osm', osm: next };
@@ -57,6 +71,7 @@ async function load(id: number, source: DataSource): Promise<void> {
         bbox: source.bbox,
         zoom: source.zoom,
         signal: controller.signal,
+        layers: [...Object.values(OPENMAPTILES_LAYERS), 'landcover'],
         ...(source.apiKey ? { apiKey: source.apiKey } : {}),
         onProgress: (done, total) =>
           post({ kind: 'progress', id, message: `Vector tiles ${done} / ${total}…` }),
@@ -141,10 +156,36 @@ function runPendingBuild(): void {
   }
 }
 
+function trees(id: number, origin: LatLon, clip: LatLonBBox | undefined): void {
+  if (!data) {
+    post({ kind: 'error', id, message: 'No data loaded.' });
+    return;
+  }
+  try {
+    const t0 = performance.now();
+    const proj = createProjection(origin);
+    const box = clip ?? (data.kind === 'osm' ? data.osm.bounds : undefined);
+    let rect: Rect | undefined;
+    if (box) {
+      const [minX, minY] = proj.project(box.minLat, box.minLon);
+      const [maxX, maxY] = proj.project(box.maxLat, box.maxLon);
+      rect = { minX, minY, maxX, maxY };
+    }
+    const result = data.kind === 'osm' ? osmTrees(data.osm, proj, rect) : tileTrees(data.tiles, proj, rect);
+    self.postMessage(
+      { kind: 'trees', id, trees: result, ms: performance.now() - t0 } satisfies DataResponse,
+      [result.points.buffer],
+    );
+  } catch (error) {
+    post({ kind: 'error', id, message: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 self.onmessage = (event: MessageEvent<DataRequest>): void => {
   const request = event.data;
   if (request.kind === 'load') void load(request.id, request.source);
   else if (request.kind === 'abort') aborts.get(request.id)?.abort();
+  else if (request.kind === 'trees') trees(request.id, request.origin, request.clip);
   else {
     // Deferred so that requests arriving during a running build collapse into the newest one.
     const idle = pendingBuild === null;

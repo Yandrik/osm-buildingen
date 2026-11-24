@@ -26,8 +26,8 @@ readAttributes(tags) / estimateHeight(attrs) / partInput(footprint, attrs)
 classify(tags, ctx) / skipReason(tags) / specialReason(tags)
 
 // @osm-buildingen/osm/overpass  (the only module that touches the network)
-fetchOverpass(bbox, { endpoint?, signal?, timeout? }): Promise<OsmData>
-overpassQuery(bbox, timeout?): string
+fetchOverpass(bbox, { endpoint?, signal?, timeout?, trees? }): Promise<OsmData>
+overpassQuery(bbox, timeout?, trees?): string   // trees: + natural=tree/tree_row, forest/wood areas (drawing only)
 OverpassError { status, retryable }   // 429, 503/504, "runtime error" remarks
 ```
 

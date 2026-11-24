@@ -106,6 +106,9 @@ let fitPending = false;
 let profile: ProfileRun | null = null;
 let profileProgress: { done: number; total: number } | null = null;
 let profileResult: ProfileEntry[] | null = null;
+/** Which origin / clip the trees in the scene were placed for; '' = none shown. */
+let treesKey = '';
+let treeCount: { mapped: number; filled: number; truncated: boolean } | null = null;
 
 const data = createDataClient((message) => controls.setStatus(message, 'busy'));
 
@@ -129,6 +132,9 @@ async function load(source: DataSource, clipBox: LatLonBBox | undefined): Promis
     fitPending = true;
     select(null);
     clearScene();
+    treesKey = '';
+    treeCount = null;
+    scene.setTrees(null);
     controls.setStatus(
       result.tiles
         ? `Loaded ${result.tiles.count} vector tiles (z${result.tiles.zoom}) from ${result.name}.`
@@ -219,8 +225,9 @@ function startTiles(clearOld: boolean, keepSelection: number | null): void {
     scene.fit(extent);
     fitPending = false;
   }
-  areaInfo.textContent = `${result.inputs.length.toLocaleString('en-US')} buildings · origin ${result.origin.lat.toFixed(5)}, ${result.origin.lon.toFixed(5)}`;
+  showAreaInfo();
   updatePassages();
+  void updateTrees();
   ensureResolved();
 
   generation = startGeneration(result, store.get().tileSize, detailOptions(), scene, pool, POOL_SIZE, {
@@ -249,6 +256,42 @@ function startTiles(clearOld: boolean, keepSelection: number | null): void {
 // ---------------------------------------------------------------------------
 // Overlays and selection
 // ---------------------------------------------------------------------------
+
+function showAreaInfo(): void {
+  if (!build) return;
+  const { inputs, origin } = build.result;
+  let text = `${inputs.length.toLocaleString('en-US')} buildings · origin ${origin.lat.toFixed(5)}, ${origin.lon.toFixed(5)}`;
+  if (store.get().showTrees && treeCount) {
+    const total = treeCount.mapped + treeCount.filled;
+    text += ` · ${total.toLocaleString('en-US')} trees (${treeCount.mapped.toLocaleString('en-US')} mapped)`;
+    if (treeCount.truncated) text += ', capped';
+  }
+  areaInfo.textContent = text;
+}
+
+/** Shows or hides trees; placed in the data worker once per origin and clip, then kept. */
+async function updateTrees(): Promise<void> {
+  if (!build || !store.get().showTrees) {
+    if (treesKey) scene.setTrees(null);
+    treesKey = '';
+    showAreaInfo();
+    return;
+  }
+  const origin = build.result.origin;
+  const key = JSON.stringify([origin, clip]);
+  if (key === treesKey) return;
+  treesKey = key;
+  try {
+    const out = await data.trees(origin, clip);
+    if (!out || treesKey !== key) return; // superseded, or switched off meanwhile
+    scene.setTrees(out.trees.points);
+    treeCount = { mapped: out.trees.mapped, filled: out.trees.filled, truncated: out.trees.truncated };
+    showAreaInfo();
+  } catch (e) {
+    treesKey = '';
+    controls.setStatus(`Trees failed: ${errorText(e)}`, 'error');
+  }
+}
 
 function overlayContext(): OverlayContext | null {
   if (!build || !resolved || !generation) return null;
@@ -533,6 +576,7 @@ store.subscribe((next, prev) => {
   if (next.showNeighbours !== prev.showNeighbours || next.studioUrl !== prev.studioUrl) showSelection();
   if (next.shadows !== prev.shadows) scene.setShadows(next.shadows);
   if (next.fog !== prev.fog) scene.setFog(next.fog);
+  if (next.showTrees !== prev.showTrees) void updateTrees();
   if (next.theme !== prev.theme) {
     applyThemeAttribute();
     scene.applyTheme();

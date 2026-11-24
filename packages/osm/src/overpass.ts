@@ -14,6 +14,8 @@ export interface FetchOverpassOptions {
   signal?: AbortSignal;
   /** Server-side timeout in seconds. Default 60. */
   timeout?: number;
+  /** Also fetch trees, tree rows and wooded areas (for drawing; the adapter ignores them). */
+  trees?: boolean;
 }
 
 /** Error from the Overpass server; `retryable` is true for rate limits, timeouts and "server busy". */
@@ -32,9 +34,20 @@ export class OverpassError extends Error {
  * Overpass QL for everything the adapter uses inside a bbox: buildings and
  * parts (ways and relations), highways, railways, and nodes with addresses or
  * shops; then all member ways and nodes (`>`), so geometry is complete.
+ * With `trees`, also `natural=tree` nodes, `natural=tree_row` ways and
+ * `landuse=forest` / `natural=wood` areas.
  */
-export function overpassQuery(bbox: LatLonBBox, timeout = 60): string {
+export function overpassQuery(bbox: LatLonBBox, timeout = 60, trees = false): string {
   const b = `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`;
+  const vegetation = trees
+    ? [
+        `  node["natural"="tree"](${b});`,
+        `  way["natural"~"^(tree_row|wood)$"](${b});`,
+        `  way["landuse"="forest"](${b});`,
+        `  relation["natural"="wood"](${b});`,
+        `  relation["landuse"="forest"](${b});`,
+      ]
+    : [];
   return [
     `[out:json][timeout:${Math.round(timeout)}];`,
     '(',
@@ -48,6 +61,7 @@ export function overpassQuery(bbox: LatLonBBox, timeout = 60): string {
     `  node["addr:housenumber"](${b});`,
     `  node["shop"](${b});`,
     `  node["amenity"~"^(${[...SHOP_NODE_AMENITY].join('|')})$"](${b});`,
+    ...vegetation,
     ');',
     'out body;',
     '>;',
@@ -65,7 +79,7 @@ export async function fetchOverpass(bbox: LatLonBBox, options: FetchOverpassOpti
   const init: RequestInit = {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `data=${encodeURIComponent(overpassQuery(bbox, options.timeout))}`,
+    body: `data=${encodeURIComponent(overpassQuery(bbox, options.timeout, options.trees))}`,
   };
   if (options.signal) init.signal = options.signal;
   const response = await fetch(endpoint, init);

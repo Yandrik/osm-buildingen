@@ -2,9 +2,10 @@
  * Loading and input building, off the main thread. A newer request supersedes an
  * older one: superseded promises resolve to `null` and their results are ignored.
  */
-import type { BuildOptions } from '@osm-buildingen/osm';
+import type { BuildOptions, LatLon, LatLonBBox } from '@osm-buildingen/osm';
 import type { AreaBuild } from './area-build';
 import type { DataRequest, DataResponse, DataSource, LoadSummary } from './data-protocol';
+import type { TreeSet } from './trees';
 
 export type { DataSource, LoadSummary };
 
@@ -33,6 +34,8 @@ export interface DataClient {
   cancelLoad(): void;
   /** Resolves `null` when a newer build superseded this one. */
   build(options: BuildOptions): Promise<BuildOutcome | null>;
+  /** Resolves `null` when a newer tree request superseded this one. */
+  trees(origin: LatLon, clip: LatLonBBox | undefined): Promise<{ trees: TreeSet; ms: number } | null>;
   dispose(): void;
 }
 
@@ -45,6 +48,7 @@ export function createDataClient(onProgress: (message: string) => void): DataCli
   let nextId = 1;
   let loadId = 0;
   let buildId = 0;
+  let treesId = 0;
   const waiting = new Map<number, Waiting>();
 
   worker.onmessage = (event: MessageEvent<DataResponse>): void => {
@@ -112,6 +116,16 @@ export function createDataClient(onProgress: (message: string) => void): DataCli
       if (response.kind === 'error') throw new Error(response.message);
       if (response.kind !== 'built') throw new Error('Unexpected worker response.');
       return { result: response.result, ms: response.ms, wallMs: performance.now() - t0 };
+    },
+    async trees(origin, clip) {
+      if (treesId) supersede(treesId);
+      const id = nextId++;
+      treesId = id;
+      const response = await request({ kind: 'trees', id, origin, clip });
+      if (!response || id !== treesId) return null;
+      if (response.kind === 'error') throw new Error(response.message);
+      if (response.kind !== 'trees') throw new Error('Unexpected worker response.');
+      return { trees: response.trees, ms: response.ms };
     },
     dispose() {
       worker.terminate();

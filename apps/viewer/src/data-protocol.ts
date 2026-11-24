@@ -1,6 +1,7 @@
 /** Messages between `data.ts` (main thread) and `data-worker.ts`. Types only. */
-import type { BuildOptions, LatLonBBox } from '@osm-buildingen/osm';
+import type { BuildOptions, LatLon, LatLonBBox } from '@osm-buildingen/osm';
 import type { AreaBuild } from './area-build';
+import type { TreeSet } from './trees';
 
 export type DataSource =
   | { kind: 'blob'; blob: Blob; name: string }
@@ -13,7 +14,9 @@ export type DataRequest =
   | { kind: 'load'; id: number; source: DataSource }
   | { kind: 'abort'; id: number }
   /** The same options serve both adapters (origin, style, bbox, seed, shopProbability). */
-  | { kind: 'build'; id: number; options: BuildOptions };
+  | { kind: 'build'; id: number; options: BuildOptions }
+  /** Trees in the frame of `origin`, inside `clip` (default: the data's bounds). */
+  | { kind: 'trees'; id: number; origin: LatLon; clip: LatLonBBox | undefined };
 
 export interface LoadSummary {
   name: string;
@@ -34,4 +37,5 @@ export type DataResponse =
   | { kind: 'progress'; id: number; message: string }
   | { kind: 'loaded'; id: number; summary: LoadSummary }
   | { kind: 'built'; id: number; result: AreaBuild; ms: number }
+  | { kind: 'trees'; id: number; trees: TreeSet; ms: number }
   | { kind: 'error'; id: number; message: string; status?: number; retryable?: boolean };

@@ -151,5 +151,14 @@ describe('overpassQuery', () => {
     expect(q).toContain('way["highway"]');
     expect(q).toContain('node["addr:housenumber"]');
     expect(q).toContain('>;');
+    expect(q).not.toContain('natural');
+  });
+
+  it('adds trees and wooded areas on request', () => {
+    const q = overpassQuery({ minLat: 48.39, minLon: 9.98, maxLat: 48.4, maxLon: 9.99 }, 60, true);
+    expect(q).toContain('node["natural"="tree"](48.39,9.98,48.4,9.99);');
+    expect(q).toContain('way["landuse"="forest"]');
+    expect(q).toContain('relation["natural"="wood"]');
+    expect(q.indexOf('relation["natural"="wood"]')).toBeLessThan(q.indexOf('\n);'));
   });
 });
