@@ -140,7 +140,10 @@ does not depend on element order.
    `building_passage`, values not in the tables (proposed, construction,
    platform, corridor, …). Per building, the lines are clipped to the
    footprint's bounding box + 40 m, pieces farther than 40 m from the outline
-   are dropped, nearest 12 kept. `passage` when the piece runs through the
+   are dropped, 12 kept: passages (and `covered` pieces within 1 m) first, then
+   the nearest. Around a big block 20 roads can touch the outline at distance 0;
+   ranked by distance alone, the cap dropped passages through it (Donaucenter,
+   Neu-Ulm). `passage` when the piece runs through the
    footprint's interior (not along a wall), or for `tunnel=building_passage`
    within 1 m. `covered=yes|arcade|colonnade` is passed on as `covered`
    (other values such as `partial` are ignored).

@@ -421,7 +421,13 @@ export function buildInputsFromTiles(
         found.push({ road, distance, index: ri });
       }
     }
-    found.sort((x, y) => Math.round(x.distance * 100) - Math.round(y.distance * 100) || x.index - y.index);
+    // Passages first, so the cap never drops a road through the building (see the OSM adapter).
+    found.sort(
+      (x, y) =>
+        Number(!x.road.passage) - Number(!y.road.passage) ||
+        Math.round(x.distance * 100) - Math.round(y.distance * 100) ||
+        x.index - y.index,
+    );
     return found.slice(0, maxRoads).map((f) => f.road);
   }
 

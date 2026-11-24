@@ -269,7 +269,8 @@ part count, house numbers, POIs and landuse found.
    Dropped: construction, ferries, piers, platforms, corridors, `indoor`,
    `layer < 0`. Tunnels on layer ≥ 0 are kept (building passages).
    `passage` when a piece runs through the interior and `brunnel` is not
-   `bridge`.
+   `bridge`. Of the pieces near a building, passages come first, then the
+   nearest; `maxRoads` keeps 12.
 9. **Seed**: the OSM adapter's scheme from lat/lon (vertices relative to the
    ring mean, 0.1 m, CCW from the smallest point; position in 1e-6°; plus
    `render_height`, `render_min_height`, `colour`, `hide_3d`). It does not

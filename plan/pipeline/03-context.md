@@ -77,7 +77,9 @@ real opening: you can see and drive through it. Code: `pipeline/passages.ts`.
 7. **Parts.** Each part computes its own corridor from the same roads; on the
    ground level the corridor wins over "blocked by the neighbouring part", so
    a passage through two parts is continuous. Parts starting above the
-   ground are not cut.
+   ground are not cut. Parts drawn across a courtyard of the outline have it
+   cut out first (see `02-input-api.md`, Parts), else a passage into the
+   courtyard ends in a solid part with only its street opening.
 8. **Massing detail.** The same tunnel with a plain rectangular opening.
 9. **Arcades and colonnades.** A road tagged `covered=arcade|colonnade`
    (`RoadInput.covered`) is the same corridor opened to the street: one

@@ -4,7 +4,7 @@ import type { WorkerRequest, WorkerResponse } from './worker';
 export interface GeneratorPoolOptions {
   /** Creates one worker. Needed because bundlers must see the `new Worker(new URL(...))` call. */
   createWorker: () => Worker;
-  /** Number of workers. Default: hardware threads minus one, between 1 and 8. */
+  /** Number of workers, at least 1. Default: hardware threads minus one, at most 8. */
   size?: number;
 }
 
@@ -35,7 +35,8 @@ export interface GeneratorPool {
  */
 export function createGeneratorPool(options: GeneratorPoolOptions): GeneratorPool {
   const threads = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
-  const size = Math.max(1, Math.min(8, options.size ?? threads - 1));
+  // Only the default is capped: a caller may deliberately want one worker per core.
+  const size = Math.max(1, Math.floor(options.size ?? Math.min(8, threads - 1)));
   const workers = Array.from({ length: size }, () => ({ worker: options.createWorker(), busy: 0 }));
   const pending = new Map<
     number,

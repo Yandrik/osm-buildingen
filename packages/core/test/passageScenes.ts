@@ -50,6 +50,13 @@ const twoParts = [
   { footprint: { outer: rect(18, 10) }, levels: 6, roof: { shape: 'flat' as const } },
   { footprint: { outer: rect(12, 10, 18, 0) }, levels: 3, roof: { shape: 'flat' as const } },
 ];
+/** 10 × 10 m courtyard in the middle of a 30 × 30 m block, clockwise. */
+const courtyardHole: Vec2[] = [
+  [10, 10],
+  [10, 20],
+  [20, 20],
+  [20, 10],
+];
 const circle: Vec2[] = Array.from(
   { length: 40 },
   (_, i): Vec2 => [12 * Math.cos((i / 40) * 2 * Math.PI), 12 * Math.sin((i / 40) * 2 * Math.PI)],
@@ -153,14 +160,7 @@ export const PASSAGE_SCENES: PassageScene[] = [
       {
         footprint: {
           outer: rect(30, 30),
-          holes: [
-            [
-              [10, 10],
-              [10, 20],
-              [20, 20],
-              [20, 10],
-            ],
-          ],
+          holes: [courtyardHole],
         },
       },
     ),
@@ -174,6 +174,40 @@ export const PASSAGE_SCENES: PassageScene[] = [
     solid: [
       [
         [15, 15],
+        [15, 36],
+      ],
+    ],
+  },
+  {
+    // As above, but built from two parts each drawn across half the courtyard (as mappers
+    // often do): the courtyard is cut out of them, so the passage still ends in the open.
+    name: 'parts-courtyard',
+    input: building(
+      rect(30, 30),
+      [
+        road([
+          [15, -20],
+          [15, 15],
+        ]),
+      ],
+      {
+        footprint: { outer: rect(30, 30), holes: [courtyardHole] },
+        parts: [
+          { footprint: { outer: rect(30, 15) }, levels: 3, roof: { shape: 'flat' } },
+          { footprint: { outer: rect(30, 15, 0, 15) }, levels: 5, roof: { shape: 'flat' } },
+        ],
+      },
+    ),
+    passages: 1,
+    clear: [
+      [
+        [15, -6],
+        [15, 19],
+      ],
+    ],
+    solid: [
+      [
+        [15, 19],
         [15, 36],
       ],
     ],

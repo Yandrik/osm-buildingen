@@ -27,6 +27,19 @@ smoke tests loaded terrain/buildings, exercised help/vehicle/camera controls and
 accelerated the car without JS or network errors. Existing Caddy gzip is active;
 custom server Cache-Control headers still require access to the Caddy site config.
 
+`python3 apps/sim/update_publish.py` rebuilds and republishes **only the app**.
+It reads the live deployment manifest through the publisher skill CLI and reuses
+its data snapshot and terrain segment settings without touching local/remote data.
+`--also-data` runs the existing stager and uploads runtime data too. Both modes
+build in an isolated temporary directory, preserve old hashed assets/snapshots,
+retry exact-path uploads, and verify app asset bytes before publishing HTML last.
+Data manifest changes during the build/upload abort publication. Only data-inclusive
+updates replace `deployment.json`; ordinary code updates leave it unchanged.
+The script imports the configured File Browser CLI for API/auth operations, keeps
+credentials out of the repository and browser, and never changes `tools.json`.
+Python unit tests cover the two modes, validation, upload ordering, refusal of
+unexpected data, concurrent manifest changes and verification failures.
+
 `pnpm --filter @osm-buildingen/sim prepare-site <new-directory> /paris-ride/`
 stages the production build and only its runtime data. No Node/backend process is
 needed online. The host must support HTTP byte ranges for the PMTiles archive and
@@ -85,6 +98,13 @@ Scale error against the ground is ±0.4 % at the bbox edges.
   to prevent flicker. Slider changes apply on the next streaming update. The
   massing mesh is kept hidden so dropping back is instant. Full cells are split in
   batches of 24 across the generator pool.
+- **Generator threads** (`world/threads.ts`): a 0–9 slider in the help panel (`?threads=n`,
+  kept in localStorage). 1–8 is that many generator workers, 9 one per hardware thread
+  (oversubscribed next to the main thread and tile workers, on purpose), 0 generates on the
+  main thread in ~4 ms slices per frame (`world/main-thread-pool.ts`). Default: 2 on mobile,
+  else hardware threads − 4 within 2–8. A change applies on slider release: the old pool is
+  disposed, its unfinished cells are rejected and requested again on the next update. Output
+  does not depend on the setting.
 - **Trees**: OSM tree points plus a jittered 11 m grid in forests, instanced, within
   900 m (300 m on mobile). Forests also get a stipple in the ground texture.
 - **Bridges**: roads and rails with `bridge=T` become deck meshes; deck height is the

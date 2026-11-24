@@ -16,4 +16,5 @@ createBuildingMaterial(options?): THREE.Material               // vertex colours
   meshes, and the pool exposes its `size`.
 - Worker helper: `createGeneratorPool(size)` returns
   `generate(inputs): Promise<BuildingMesh[]>` and handles transfer. The worker
-  file is a separate entry point so bundlers can pick it up.
+  file is a separate entry point so bundlers can pick it up. The default size is
+  hardware threads minus one, capped at 8; an explicit `size` is only kept ≥ 1.

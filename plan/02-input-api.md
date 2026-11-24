@@ -55,6 +55,12 @@ the main body to the outline. Rules:
   and are dropped, so a fully covered outline gives no body.
 - If the subtraction fails, the outline is built whole when the parts cover
   less than 60 % of it, otherwise only the parts are built.
+- The outline's holes (courtyards) are cut out of the parts: mappers often
+  draw a `building:part` straight across the courtyard of a multipolygon, and
+  the passages into the courtyard need it open. Overlaps under 1 m² are left
+  alone. A part the cut splits becomes several (the first piece keeps the
+  part's seed, the others get `part<i>.<k>`); a part wholly inside a
+  courtyard is kept as mapped.
 - Parts and body get no roof overhang; they are fitted against each other.
 
 Parts share the building's type, era, palette, facade variant and level

@@ -376,6 +376,31 @@ describe('passages', () => {
     expect(street(low).length).toBe(1);
   });
 
+  it('cuts the courtyard out of parts drawn across it, splitting a part where needed', () => {
+    const down = (p: Vec2): Hit[] => cast(mesh, world(p, 40), world(p, 0.05));
+    let mesh = generateBuilding(scene('parts-courtyard').input);
+    for (const p of [
+      [15, 12],
+      [15, 18],
+      [11, 11],
+      [19, 19],
+    ] as Vec2[])
+      expect(down(p)).toEqual([]);
+    expect(down([15, 5]).length).toBeGreaterThan(0);
+    // A band across the courtyard falls into two pieces, each built; the outline's rest is the body.
+    mesh = generateBuilding({
+      ...scene('parts-courtyard').input,
+      roads: [],
+      parts: [{ footprint: { outer: rect(30, 6, 0, 12) }, levels: 6, roof: { shape: 'flat' } }],
+    });
+    checkMesh(mesh);
+    expect(down([15, 15])).toEqual([]);
+    const tall = partsOf(mesh).filter((p) => p.spec.wallHeight > 15);
+    expect(tall.length).toBe(2);
+    expect(down([5, 15])[0]?.point[1]).toBeGreaterThan(15);
+    expect(down([25, 15])[0]?.point[1]).toBeGreaterThan(15);
+  });
+
   it('does not cut parts that start above the ground', () => {
     const mesh = generateBuilding(scene('parts-bridge').input);
     const bridge = partsOf(mesh).find((p) => p.spec.base > 0.5);

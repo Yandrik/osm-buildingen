@@ -1,5 +1,6 @@
-import { difference } from './geom/boolean';
-import { perimeter, polygonArea, ringArea, ringBounds } from './geom/polygon';
+import { difference, intersection } from './geom/boolean';
+import { type Polygon, perimeter, polygonArea, ringArea, ringBounds } from './geom/polygon';
+import type { Vec2 } from './geom/vec2';
 import { mergeMeshes } from './mesh/merge';
 import { assemble } from './pipeline/assemble';
 import { autoParts } from './pipeline/autoParts';
@@ -106,6 +107,7 @@ function partInput(
   parent: ResolvedSpec,
   part: PartInput,
   index: number,
+  piece = 0,
 ): BuildingInput {
   // Upper-level height of the building, so `minLevel` and level counts line up between parts.
   const nominal = parent.levelHeights[parent.levelHeights.length - 1] ?? 3;
@@ -132,7 +134,8 @@ function partInput(
     // One palette, era and facade variant for all parts.
     groupKey: input.groupKey ?? `self:${input.seed}`,
     style: input.style,
-    seed: `${input.seed}/part${index}`,
+    // Further pieces of a part split by a courtyard get seeds of their own; the first keeps the part's.
+    seed: piece === 0 ? `${input.seed}/part${index}` : `${input.seed}/part${index}.${piece}`,
     baseElevation: input.baseElevation,
     detail: input.detail,
     debug: input.debug,
@@ -187,13 +190,60 @@ function uncoveredBody(
     }));
 }
 
-function generateParts(input: BuildingInput, given: readonly PartInput[]): BuildingMesh {
+/** Courtyard overlap below this (m²) is a mapping inaccuracy at the edge, not a part over the courtyard. */
+const MIN_COURTYARD_OVERLAP = 1;
+
+/**
+ * The parts with the outline's courtyards cut out, each piece with the index of the
+ * part it came from.
+ *
+ * Mappers often draw a `building:part` straight across the courtyard of a
+ * multipolygon; the outline's hole says the courtyard is open, and the passages
+ * into it need it open. A part the cut splits becomes several pieces. A part lying
+ * wholly inside a courtyard is kept: something was mapped there on purpose.
+ */
+function cutCourtyards(
+  parts: readonly PartInput[],
+  holes: readonly (readonly Vec2[])[],
+  notes: string[],
+): { part: PartInput; index: number; piece: number }[] {
+  const out: { part: PartInput; index: number; piece: number }[] = [];
+  const courtyards: Polygon[] = holes.map((h) => ({ outer: [...h].reverse() }));
+  const boxes = courtyards.map((c) => ringBounds(c.outer));
+  parts.forEach((part, index) => {
+    const box = ringBounds(part.footprint.outer);
+    const over = courtyards.filter((c, k) => {
+      const b = boxes[k];
+      if (!b || b.minX >= box.maxX || b.maxX <= box.minX || b.minY >= box.maxY || b.maxY <= box.minY)
+        return false;
+      const shared = intersection(part.footprint, c);
+      return shared !== null && shared.reduce((sum, p) => sum + polygonArea(p), 0) >= MIN_COURTYARD_OVERLAP;
+    });
+    const pieces = over.length > 0 ? difference(part.footprint, over) : null;
+    if (!pieces || pieces.length === 0) {
+      if (over.length > 0 && !pieces) notes.push('could not cut the courtyard out of a part');
+      out.push({ part, index, piece: 0 });
+      return;
+    }
+    pieces.forEach((footprint, piece) => {
+      out.push({ part: { ...part, footprint }, index, piece });
+    });
+  });
+  return out;
+}
+
+function generateParts(input: BuildingInput, mapped: readonly PartInput[]): BuildingMesh {
   const parent = resolve({ ...input, parts: undefined });
-  const givenInputs = given.map((part, i) => partInput(input, parent, part, i));
+  const cut = cutCourtyards(mapped, parent.footprint.holes ?? [], parent.notes);
+  const given = cut.map((c) => c.part);
+  const givenInputs = cut.map((c) => partInput(input, parent, c.part, c.index, c.piece));
   const body = uncoveredBody(input, parent, given, givenInputs);
   const parts = [...given, ...body];
   // Body pieces get their own seeds, after the given parts, so adding one does not reshuffle the others.
-  const inputs = [...givenInputs, ...body.map((part, i) => partInput(input, parent, part, given.length + i))];
+  const inputs = [
+    ...givenInputs,
+    ...body.map((part, i) => partInput(input, parent, part, mapped.length + i)),
+  ];
 
   // First pass: resolve every part to learn its wall top, so parts can block each other correctly.
   const specs: (ResolvedSpec | null)[] = inputs.map((p) => {

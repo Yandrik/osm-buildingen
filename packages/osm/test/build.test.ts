@@ -319,4 +319,21 @@ describe('small hand-made scene', () => {
     expect(only.stats.skippedOutside).toBe(2);
     expect(only.inputs[0]?.seed).toBe(r.inputs[1]?.seed);
   });
+
+  it('keeps the passage when more roads than the cap touch the building', () => {
+    // A 40 x 20 m block with 14 footways ending on its south wall (distance 0, low ids)
+    // and a passage through it with the highest id: the cap of 12 must not drop it.
+    const nodes = [node(1, 0, 0), node(2, 40, 0), node(3, 40, 20), node(4, 0, 20)];
+    const ways: OsmData['ways'] = [{ id: 100, nodes: [1, 2, 3, 4, 1], tags: { building: 'yes' } }];
+    for (let k = 0; k < 14; k++) {
+      nodes.push(node(10 + 2 * k, 2 + 2.5 * k, -10), node(11 + 2 * k, 2 + 2.5 * k, 0));
+      ways.push({ id: 200 + k, nodes: [10 + 2 * k, 11 + 2 * k], tags: { highway: 'footway' } });
+    }
+    nodes.push(node(90, 20, 30), node(91, 20, 10));
+    ways.push({ id: 900, nodes: [90, 91], tags: { highway: 'footway', tunnel: 'building_passage' } });
+    const crowded = buildInputs({ nodes, ways, relations: [] }, { style, origin: { lat: 0, lon: 0 } });
+    const roads = crowded.inputs[0]?.roads ?? [];
+    expect(roads).toHaveLength(12);
+    expect(roads[0]?.passage).toBe(true);
+  });
 });

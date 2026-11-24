@@ -562,7 +562,14 @@ export function buildInputs(data: OsmData, options: BuildOptions): BuildResult {
         found.push({ road, distance, osmId: r.osmId });
       }
     }
-    found.sort((x, y) => Math.round(x.distance * 100) - Math.round(y.distance * 100) || x.osmId - y.osmId);
+    // Passages first: around a big block many roads touch the outline at distance 0, and the
+    // cap must not drop the ones that go through it.
+    found.sort(
+      (x, y) =>
+        through(x) - through(y) ||
+        Math.round(x.distance * 100) - Math.round(y.distance * 100) ||
+        x.osmId - y.osmId,
+    );
     return found.slice(0, maxRoads).map((f) => f.road);
   }
 
@@ -660,6 +667,11 @@ function ringCentroidInside(ring: readonly Vec2[]): Vec2 {
     if (pointInRing(p, ring)) return p;
   }
   return c;
+}
+
+/** 0 for a road piece that goes through the building (or is mapped as covered by it), else 1. */
+function through(f: { road: RoadInput; distance: number }): number {
+  return f.road.passage || (f.road.covered !== undefined && f.distance < 1) ? 0 : 1;
 }
 
 function pieceDistance(piece: readonly Vec2[], s: Shape): number {
