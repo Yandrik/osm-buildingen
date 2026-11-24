@@ -1,4 +1,3 @@
-import { createGeneratorPool } from '@osm-buildingen/three';
 import {
   Color,
   DirectionalLight,
@@ -22,6 +21,7 @@ import { OutlinePass, toon } from './render/toon';
 import { setupTouch } from './touch';
 import { Plane, type Vehicle, type VehicleKind, createVehicles } from './vehicles/vehicles';
 import { TILE, X0, X1, Y0, Y1, lonLatToWorld, worldToLonLat } from './world/frame';
+import { THREADS_ALL, createPool, defaultThreads, parseThreads, threadsLabel } from './world/threads';
 import { World } from './world/world';
 
 const params = new URLSearchParams(location.search);
@@ -76,12 +76,18 @@ const outline = new OutlinePass(
   Math.max(1, Math.round(pixelRatio * 1.25)),
 );
 
-const pool = createGeneratorPool({
-  createWorker: () =>
-    new Worker(new URL('@osm-buildingen/three/worker', import.meta.url), { type: 'module' }),
-  size: mobile ? 2 : Math.max(2, Math.min(8, (navigator.hardwareConcurrency || 4) - 4)),
-});
-const world = new World(renderer, pool, { mobile });
+// Generator threads: ?threads=0..9, else the last value set in the help panel, else the default.
+const THREADS_KEY = 'sim.generatorThreads';
+const hardware = navigator.hardwareConcurrency || 4;
+const storedThreads = (() => {
+  try {
+    return localStorage.getItem(THREADS_KEY);
+  } catch {
+    return null;
+  }
+})();
+let threads = parseThreads(params.get('threads') ?? storedThreads, defaultThreads(mobile, hardware));
+const world = new World(renderer, createPool(threads, hardware), { mobile });
 scene.add(world.group);
 
 // Building distance: ?bldg=metres, else the last value set in the help panel, else 350 m.
@@ -235,6 +241,27 @@ hqInput.addEventListener('input', () => {
   hqValue.textContent = `${hqInput.value} m`;
   try {
     localStorage.setItem(HQ_KEY, hqInput.value);
+  } catch {
+    // Storage blocked (private mode): the setting just lasts for this session.
+  }
+});
+
+const threadsInput = $<HTMLInputElement>('threads');
+const threadsValue = $('threads-value');
+threadsInput.max = String(THREADS_ALL);
+threadsInput.value = String(threads);
+threadsValue.textContent = threadsLabel(threads, hardware);
+threadsInput.addEventListener('input', () => {
+  threadsValue.textContent = threadsLabel(Number(threadsInput.value), hardware);
+});
+// Applied on release only: dragging across the range would spawn and kill workers per step.
+threadsInput.addEventListener('change', () => {
+  const next = Number(threadsInput.value);
+  if (next === threads) return;
+  threads = next;
+  world.buildings.setPool(createPool(threads, hardware));
+  try {
+    localStorage.setItem(THREADS_KEY, threadsInput.value);
   } catch {
     // Storage blocked (private mode): the setting just lasts for this session.
   }

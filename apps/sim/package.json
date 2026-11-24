@@ -10,7 +10,7 @@
     "build": "vite build",
     "prepare-site": "tsx scripts/prepare-site.ts",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run && python3 -B -m unittest discover -s test -p '*_test.py'",
     "typecheck": "tsc --noEmit",
     "prepare-data": "tsx scripts/spill.ts data/osm/tiles data/osm/spill"
   },

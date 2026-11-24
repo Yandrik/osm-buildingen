@@ -46,10 +46,20 @@ export class Buildings {
   stats = { cells: 0, massing: 0, full: 0, pending: 0, triangles: 0 };
 
   constructor(
-    private readonly pool: GeneratorPool,
+    private pool: GeneratorPool,
     private readonly material: Material,
   ) {
     this.group.name = 'buildings';
+  }
+
+  /**
+   * Replaces the generator pool and disposes the old one. Jobs still on the old pool are
+   * rejected, which leaves their cells unbuilt, so the next update requests them again.
+   */
+  setPool(pool: GeneratorPool): void {
+    const old = this.pool;
+    this.pool = pool;
+    old.dispose();
   }
 
   addTile(tx: number, ty: number, cells: CellInputs[]): void {
@@ -165,17 +175,19 @@ export class Buildings {
     for (let i = 0; i < inputs.length; i += size) batches.push(inputs.slice(i, i + size));
     this.inflight += batches.length;
     let meshes: (BuildingMesh | null)[] = [];
+    const pool = this.pool;
     try {
       const results = await Promise.all(
         batches.map((b) =>
-          this.pool.generate(b).finally(() => {
+          pool.generate(b).finally(() => {
             this.inflight--;
           }),
         ),
       );
       meshes = results.flatMap((r) => r.meshes);
     } catch (error) {
-      console.warn('building generation failed', cell.key, error);
+      // A swapped pool rejects its jobs on purpose; the cell is just requested again.
+      if (pool === this.pool) console.warn('building generation failed', cell.key, error);
     }
     cell.pending = 0;
     if (cell.removed) return;

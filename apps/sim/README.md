@@ -40,6 +40,30 @@ Terrain © Mapterhorn. Map data © OpenStreetMap contributors (ODbL), extract by
 
 Published (unlisted): https://pub.cool2.yandrik.dev/paris-ride/
 
+From the repository root (or invoke the script by absolute path from elsewhere):
+
+```sh
+python3 apps/sim/update_publish.py              # from the repo root: app only
+python3 apps/sim/update_publish.py --also-data  # rebuild and upload runtime data too
+```
+
+App-only updates read the live `deployment.json` to select the existing terrain
+snapshot and build settings; they never scan, stage, or upload local data and leave
+the remote data manifest unchanged. `--also-data` uses the staging command below
+and uploads runtime data before changing the manifest and entry point. Old assets
+and data snapshots are preserved. App assets are byte-verified before publishing
+`index.html` last; a changed live data manifest aborts publication.
+
+Requires Python 3, pnpm, installed workspace dependencies, and the File Browser
+publisher skill CLI (default `~/.config/opencode/skills/filebrowser-publish/scripts/filebrowser_cli.py`).
+Set `FILEBROWSER_CLI` or `--filebrowser-cli` to override its location. Authentication
+uses that CLI's stored credentials or `FILEBROWSER_*` environment overrides, never
+public app files. Upload concurrency defaults to 4 (`--workers 1..8`). Builds are
+isolated under `/tmp/opencode` and cleaned up afterwards. The homepage catalog is
+not changed.
+
+To stage a deployment manually:
+
 ```sh
 pnpm --filter @osm-buildingen/sim prepare-site /tmp/opencode/paris-ride-site /paris-ride/
 ```

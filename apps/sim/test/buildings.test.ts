@@ -107,3 +107,35 @@ describe('HQ building distance', () => {
     expect(f.generate).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('swapping the generator pool', () => {
+  it('disposes the old pool and requests its unfinished cells again on the new one', async () => {
+    const f = fixture();
+    let rejectStuck: (e: Error) => void = () => {};
+    const stuck = vi.fn<GeneratorPool['generate']>(
+      () =>
+        new Promise((_, reject) => {
+          rejectStuck = reject;
+        }),
+    );
+    const dispose = vi.fn(() => rejectStuck(new Error('Generator pool disposed')));
+    f.buildings.setPool({ size: 1, generate: stuck, dispose });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    f.update(175);
+    expect(stuck).toHaveBeenCalledTimes(1);
+
+    const generate = vi.fn<GeneratorPool['generate']>(async (inputs) => ({
+      meshes: inputs.map((b) => generateBuilding(b)),
+      errors: inputs.map(() => null),
+      time: 0,
+      times: new Float32Array(inputs.length),
+    }));
+    f.buildings.setPool({ size: 1, generate, dispose() {} });
+    expect(dispose).toHaveBeenCalledTimes(1);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await f.massing(175);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
