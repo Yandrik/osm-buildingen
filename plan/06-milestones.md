@@ -26,4 +26,13 @@ Status legend: [ ] open, [~] in progress, [x] done.
    and added as `packages/vector-tiles` with a viewer source; same buildings and
    levels as the OSM adapter in Ulm, without roof shapes and types.
 
+9. [~] **Places of worship.** `worship` type: roles for mapped parts
+   (main, tower, small), romanesque / gothic / classic / modern windows,
+   belfries, and a ridge turret or west tower for churches without parts
+   (styles/worship.md). Also: rows by volume, bays between mapped
+   buttresses, straight eaves over buttresses in the outline, hipped apse
+   ends, profile (lathe) roofs, steeple designs as style data (octagon and
+   spire, bell roof with lantern, onion), portals with rose windows, clocks,
+   finials, faith. Next: orthodox and synagogue facades, mosques, castles.
+
 Each milestone ends with: tests green, plan updated, commit.

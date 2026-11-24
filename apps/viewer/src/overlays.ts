@@ -42,6 +42,7 @@ export const TYPE_COLOURS: Record<BuildingType, Rgb> = {
   station: [0, 158, 115],
   store: [240, 228, 66],
   canopy: [86, 180, 233],
+  worship: [150, 60, 170],
 };
 
 const GREY: Rgb = [185, 185, 185];

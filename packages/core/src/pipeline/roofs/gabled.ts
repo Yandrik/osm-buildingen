@@ -137,7 +137,7 @@ function buildWingGable(ctx: RoofContext): RoofGeometry | null {
     return null;
   }
   const gables = pickGableEnds(outer, skeleton);
-  if (gables.length < 2) {
+  if (gables.length < 2 && !ctx.hippedEnds) {
     spec.notes.push('gabled roof: fewer than two wing ends, single ridge on the box axis');
     return null;
   }
@@ -155,7 +155,8 @@ export function buildGabled(ctx: RoofContext): RoofGeometry | null {
   const { spec } = ctx;
   const { box, rectangularity } = spec.metrics;
   const along = Math.abs(dot(spec.roof.ridgeAxis, box.axis)) > 0.5;
-  if (rectangularity <= NEAR_RECTANGLE && along && spec.footprint.holes.length === 0) {
+  const wings = ctx.hippedEnds ? spec.footprint.outer.length > 4 : rectangularity <= NEAR_RECTANGLE;
+  if (wings && along && spec.footprint.holes.length === 0) {
     const roof = buildWingGable(ctx);
     if (roof) return roof;
   }

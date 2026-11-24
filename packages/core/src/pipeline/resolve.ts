@@ -13,6 +13,7 @@ import {
   type ResolvedBalcony,
   type ResolvedRoof,
   type ResolvedSpec,
+  type RoofProfile,
   type RoofShape,
   type WallStyle,
 } from '../types';
@@ -123,6 +124,22 @@ function resolveBalcony(
   };
 }
 
+/**
+ * A usable outline for a swept roof, or undefined: at least two points, the shares
+ * rising from 0 to 1, the scales within reason.
+ */
+function cleanProfile(profile: RoofProfile | undefined): RoofProfile | undefined {
+  if (!profile || profile.length < 2) return undefined;
+  let last = 0;
+  for (const [scale, share] of profile) {
+    if (!Number.isFinite(scale) || !Number.isFinite(share)) return undefined;
+    if (scale < 0 || scale > 3 || share < last - 1e-9 || share > 1 + 1e-9) return undefined;
+    last = share;
+  }
+  if ((profile[0] as readonly [number, number])[1] > 1e-9 || last < 1 - 1e-9) return undefined;
+  return profile.map(([scale, share]) => [mm(scale), mm(share)] as const);
+}
+
 function roofHeightFromPitch(shape: RoofShape, pitchDeg: number, halfSpan: number): number {
   switch (shape) {
     case 'flat':
@@ -205,6 +222,8 @@ export function resolve(input: BuildingInput): ResolvedSpec {
   let nominalLevel = evalCurve(style.levelHeight, era);
   // Roofs on posts: a carport is lower than a fuel-station canopy.
   if (type === 'canopy') nominalLevel = clamp(2.2 + Math.sqrt(metrics.area) * 0.15, 2.6, 4.6);
+  // Places of worship are one tall room: the walls grow with the width (about 0.8 of it).
+  if (type === 'worship') nominalLevel = mm(clamp(1.6 * metrics.box.halfWidth, 4.5, 14));
   const base = Math.max(0, input.minHeight ?? 0);
   // A part that starts above the ground (a tower's shaft) has no taller ground floor.
   const groundExtra = base < 0.5 ? evalCurve(style.groundExtra, era) : 0;
@@ -228,8 +247,10 @@ export function resolve(input: BuildingInput): ResolvedSpec {
       roofHeight = mm(Math.max(0, input.height - base - wall));
       notes.push('roof height reduced to fit the given total height');
     }
+    // Churches are mapped with any level count (1, or the storeys of the tower); their rows
+    // follow the wall height instead.
     levels =
-      input.levels && input.levels >= 1
+      input.levels && input.levels >= 1 && type !== 'worship'
         ? Math.round(input.levels)
         : Math.max(1, Math.round(wall / nominalLevel));
     const extra = levels > 1 ? groundExtra : 0;
@@ -268,6 +289,9 @@ export function resolve(input: BuildingInput): ResolvedSpec {
     // A flat roof that reaches past the walls is a slab, not a parapet.
     parapet: shape === 'flat' && overhang === 0 ? mm(evalCurve(style.parapet, era)) : 0,
   };
+  const profile =
+    shape === 'cone' || shape === 'dome' || shape === 'onion' ? cleanProfile(input.roof?.profile) : undefined;
+  if (profile) roof.profile = profile;
 
   // --- Palette ---
   const lists: PaletteSet = { ...pack.palette, ...(style.palette ?? {}) };
@@ -335,6 +359,8 @@ export function resolve(input: BuildingInput): ResolvedSpec {
     balcony,
     bayWidth: mm(evalCurve(style.bayWidth, era)),
     plinthHeight: mm(evalCurve(style.plinth, era)),
+    volume: 'main',
+    faith: input.faith ?? 'christian',
     notes,
   };
 }

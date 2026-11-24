@@ -8,7 +8,16 @@ Walls are unrolled into strips of cells.
   `bayWidth` comes from the style (2.4 – 3.6 m; wider for stores and modern
   offices). Walls shorter than 1.2 m become one narrow cell that only accepts
   blank tiles.
-- Rows: one per level. Row kinds: `ground`, `upper`, `top`.
+- A style may ask for bays between piers instead (`pierBays`, places of
+  worship): where a slim part of the same building stands against the wall,
+  that stretch is a blank column of its own and the stretches between are
+  divided on their own. Columns of one wall then differ in width. Cells also
+  learn which of their edges are free (`FacadeCell.params.edgeL` / `edgeR`);
+  cell params go on top of the tile's own when the piece is drawn.
+- Towers of a type laid out by volume, and walls facing a given front
+  (`FacadeHints.front`), get an odd number of bays, so there is a middle one.
+- Rows: one per level, or by volume where the style says so (`rows`, see
+  styles/worship.md). Row kinds: `ground`, `upper`, `top`.
 - Walls are solved in one pass but are not linked across corners yet: each
   wall is its own grid. Building-wide consistency comes from the facade
   variant (see below), not from corner links.
@@ -53,8 +62,18 @@ A type style may define building-wide variants (for example window styles
 One is rolled per plot in resolve; tiles naming another variant are removed
 before solving. This keeps one building from mixing window styles.
 
-Tiles with role door, garage, shop, shopdoor or dock are never placed by the
-solver; only the rules in step 2 place them. Role balcony (the balcony door) is
+Tiles may also name the volumes they fit (`volumes`: main, tower, small; see
+styles/worship.md). Tiles for other volumes are removed the same way. Only
+places of worship give parts a volume other than `main` today.
+
+A tile may also be limited to cells up to `maxWidth` (a slit looks lost in a
+wide bay), as it is from `minWidth`.
+
+Tiles with role door, garage, shop, shopdoor, dock or clock are never placed by
+the solver; only the rules in step 2 place them. A given front
+(`FacadeHints.front`) beats the street score when the entrance wall is picked;
+the clock goes to the middle bay of the row below the top one on every free
+wall of the one tower that carries it (`FacadeHints.clock`). Role balcony (the balcony door) is
 placed only by the balcony pass (step 5).
 
 ## Solve order

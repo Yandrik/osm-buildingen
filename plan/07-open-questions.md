@@ -21,13 +21,14 @@
 - **Pool cancellation.** The worker pool cannot cancel queued batches; the
   viewer limits in-flight batches and ignores stale results. Add a cancel
   token if tile churn becomes a cost.
-- **Special buildings without parts.** They are emitted as massing with a
-  guessed type and roof. A dedicated `special` type with calmer defaults
-  (gabled, no clutter) would look better until they get real support.
+- **Special buildings without parts.** Places of worship now have a type of
+  their own (styles/worship.md). Castles, towers and the other specials are
+  still emitted as massing with a guessed type and roof; castles are next
+  (battlements as a parapet variant), mosques with them (dome, minaret).
 
 ## Deferred
 
-- Special buildings (churches, landmarks).
+- Special buildings other than places of worship (castles, landmarks).
 - Palette texture output.
 - Instancing of repeated pieces.
 - Sawtooth roofs, round roofs, domes.

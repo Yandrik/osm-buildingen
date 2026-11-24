@@ -1,7 +1,7 @@
 import type { Colour } from '../colour';
 import type { MeshBuilder } from '../mesh/builder';
 import type { Frame } from '../mesh/frame';
-import type { Palette } from '../types';
+import type { Faith, Palette } from '../types';
 
 export interface PieceContext {
   params: Readonly<Record<string, number>>;
@@ -16,6 +16,8 @@ export interface PieceContext {
   era: number;
   /** Seed for small per-cell variation (brace direction and the like). */
   seed: number;
+  /** Places of worship: whose it is, for pieces that carry a symbol. */
+  faith?: Faith;
 }
 
 /** Draws one facade cell, including the wall around its opening. */

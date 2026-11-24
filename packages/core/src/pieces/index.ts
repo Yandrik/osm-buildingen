@@ -1,5 +1,6 @@
 import { balconyDoor } from './balcony';
 import { door, garageDoor } from './door';
+import { clock, portal } from './portal';
 import { shopfront } from './shopfront';
 import type { Piece } from './types';
 import { wall } from './wall';
@@ -15,4 +16,6 @@ export const PIECES: Readonly<Record<string, Piece>> = {
   garageDoor,
   shopfront,
   balconyDoor,
+  portal,
+  clock,
 };

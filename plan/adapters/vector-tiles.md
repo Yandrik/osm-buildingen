@@ -246,8 +246,8 @@ part count, house numbers, POIs and landuse found.
    `height` / `minHeight` in metres. A tagged height that happens to fit the
    formula (11 m, 15 m …) is read as levels too. `colour` → `colours.wall`.
 7. **Hints** (`src/hints.ts`, tables): house number point inside →
-   `hasAddress`. POIs inside (each tile's own square only): `place_of_worship`,
-   `castle` on ≥ 80 m² → special (massing); railway station / bus station /
+   `hasAddress`. POIs inside (each tile's own square only): `castle`
+   on ≥ 80 m² → special (massing); `place_of_worship` on ≥ 80 m² → worship; railway station / bus station /
    ferry terminal → station; town_hall, school, hospital, university, college,
    library → office; hotel / hostel / guest house → apartments; shop-like
    classes (shop, clothing_store, grocery, bakery, restaurant, cafe, bar, bank,

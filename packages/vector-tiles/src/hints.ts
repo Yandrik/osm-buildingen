@@ -7,13 +7,18 @@ import type { BuildingType } from '@osm-buildingen/core';
  * only POIs that usually describe the whole building set a type; shops only set
  * `shop` (like shop nodes in the OSM adapter).
  *
- * Order (see `classifyVector`): special > station > POI type > landuse type >
+ * Order (see `classifyVector`): special > worship > station > POI type > landuse type >
  * shop (townhouse or store) > undefined (core guesses from size).
  */
 
 /** POI `class` values that make a building special (massing, type left to core). */
-export const SPECIAL_POI_CLASS: ReadonlySet<string> = new Set(['place_of_worship', 'castle']);
-/** Specials need a footprint of at least this many m² (a chapel room inside a hospital is not a church). */
+export const SPECIAL_POI_CLASS: ReadonlySet<string> = new Set(['castle']);
+/** POI `class` values that make a building a place of worship (type `worship`), from the same size. */
+export const WORSHIP_POI_CLASS: ReadonlySet<string> = new Set(['place_of_worship']);
+/**
+ * Specials and places of worship need a footprint of at least this many m² (a chapel
+ * room inside a hospital is not a church).
+ */
 export const SPECIAL_MIN_AREA = 80;
 
 /** POI `class` / `subclass` -> type when the POI usually is the whole building. Key: `class/subclass` or `class`. */
@@ -119,6 +124,15 @@ export function classifyVector(c: ClassifyContext): Classification {
     if (special) {
       const what = `poi ${special.cls}/${special.subclass}`;
       return { type: undefined, reason: `special: ${what}`, special: what, shop: false };
+    }
+    const worship = pois.find((p) => WORSHIP_POI_CLASS.has(p.cls));
+    if (worship) {
+      return {
+        type: 'worship',
+        reason: `poi ${worship.cls}/${worship.subclass}`,
+        special: undefined,
+        shop: false,
+      };
     }
   }
   const typed = pois

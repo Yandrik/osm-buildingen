@@ -5,6 +5,7 @@ import type { MeshBuilder } from '../mesh/builder';
 import type { Frame } from '../mesh/frame';
 import { box, rect } from '../mesh/frame';
 import { PIECES, type PieceContext } from '../pieces';
+import { circle, ringBand } from '../pieces/portal';
 import { Rng, seedFrom } from '../rng';
 import { getStylePack } from '../styles/registry';
 import { evalCurve } from '../styles/types';
@@ -19,6 +20,11 @@ import type {
   WallSegment,
 } from '../types';
 import { GENERATOR_VERSION } from '../version';
+
+/** Roofs that come to a point and can carry a finial. */
+const POINTED = new Set(['pyramidal', 'cone', 'dome', 'onion']);
+/** Gilded metal of finials and crosses. */
+const FINIAL = 0xc9a227;
 
 export interface RoofDetailStage {
   mb: MeshBuilder;
@@ -108,6 +114,82 @@ export function addRoofDetails(stage: RoofDetailStage): number {
       [centre[0] - axis[0] * halfL + s[0] * halfW, centre[1] - axis[1] * halfL + s[1] * halfW],
     ];
   };
+
+  // --- Finial on the tip of a tower roof (places of worship) ---
+  if (
+    style.finial !== undefined &&
+    spec.volume === 'tower' &&
+    POINTED.has(spec.roof.shape) &&
+    spec.roof.height > 0 &&
+    rng.fork('finial').chance(evalCurve(style.finial, era))
+  ) {
+    // The roof must really come to one point (a pyramid that fell back to a hipped roof has a ridge).
+    let tip: Vec3In | null = null;
+    let single = true;
+    for (const face of roof.faces) {
+      for (const p of face.points) {
+        if (!tip || p[2] > tip[2] + 1e-3) {
+          tip = p;
+          single = true;
+        } else if (p[2] > tip[2] - 1e-3 && Math.hypot(p[0] - tip[0], p[1] - tip[1]) > 0.01) single = false;
+      }
+    }
+    if (tip && single) {
+      const { axis, halfLength, halfWidth } = spec.metrics.box;
+      const size = Math.min(3.2, Math.max(0.9, 0.6 * Math.min(halfLength, halfWidth)));
+      const at: Vec2 = [tip[0], tip[1]];
+      const z = tip[2];
+      const t = Math.max(0.04, size * 0.035);
+      const across: Vec2 = [-axis[1], axis[0]];
+      /** Bar across the post at height `h` (share of the size), `tilt` raising its far end. */
+      const bar = (h: number, half: number, tilt = 0): void => {
+        const c = boxAt(at, across, size * half, t);
+        const lift = (k: number): number => z + size * h + (k === 1 || k === 2 ? tilt : -tilt) * size;
+        for (let k = 0; k < 4; k++) {
+          const j = (k + 1) % 4;
+          mb.quad(
+            world(c[k] as Vec2, lift(k) - t),
+            world(c[j] as Vec2, lift(j) - t),
+            world(c[j] as Vec2, lift(j) + t),
+            world(c[k] as Vec2, lift(k) + t),
+            FINIAL,
+          );
+        }
+        mb.polygon(
+          c.map((q, k) => world(q, lift(k) + t)),
+          FINIAL,
+        );
+        mb.polygon(c.map((q, k) => world(q, lift(k) - t)).reverse(), shade(FINIAL, 0.7));
+      };
+      /** Eight-sided ball of radius r around height zc. */
+      const ball = (zc: number, r: number): void => {
+        const ringPoints: Vec2[] = [
+          axis,
+          across,
+          [-axis[0], -axis[1]] as Vec2,
+          [-across[0], -across[1]] as Vec2,
+        ].map((e): Vec2 => [at[0] + e[0] * r, at[1] + e[1] * r]);
+        for (let k = 0; k < 4; k++) {
+          const a = ringPoints[k] as Vec2;
+          const b = ringPoints[(k + 1) % 4] as Vec2;
+          mb.tri(world(a, zc), world(b, zc), world(at, zc + r), FINIAL);
+          mb.tri(world(b, zc), world(a, zc), world(at, zc - r), shade(FINIAL, 0.8));
+        }
+      };
+      const crossed = spec.faith === 'christian' || spec.faith === 'orthodox';
+      const post = crossed ? size : size * 0.55;
+      prism(boxAt(at, axis, t, t), z - 0.2, z + post, FINIAL, FINIAL);
+      ball(z + size * 0.2, size * 0.12);
+      if (spec.faith === 'christian') bar(0.68, 0.26);
+      else if (spec.faith === 'orthodox') {
+        // Three bars: the short title board, the arms, and the slanted foot rest.
+        bar(0.86, 0.13);
+        bar(0.7, 0.27);
+        bar(0.46, 0.17, 0.035);
+      } else if (spec.faith === 'muslim') ball(z + size * 0.5, size * 0.07);
+      count++;
+    }
+  }
 
   const slopes = roof.faces.filter((f) => f.kind === 'slope');
   // Curved roofs (domes, barrels) have no 'slope' faces, so they get no chimneys or dormers.
@@ -291,6 +373,51 @@ export function addRoofDetails(stage: RoofDetailStage): number {
         top: false,
         bottom: false,
       });
+      count++;
+    });
+  }
+
+  // --- Round window high in each gable (places of worship) ---
+  if (pitched && style.gableOculus !== undefined && spec.volume === 'main') {
+    const p = evalCurve(style.gableOculus, era);
+    walls.forEach((wall, w) => {
+      if (wall.top.length < 3 || wall.length < 4.5 || (context[w] as WallContext).openFraction < 0.7) return;
+      let peak = wall.top[0] as { t: number; h: number };
+      for (const q of wall.top) if (q.h > peak.h) peak = q;
+      if (peak.h < 3 || peak.t < 0.3 || peak.t > 0.7) return;
+      if (!rng.fork('oculus', w).chance(p)) return;
+      const r = Math.min(1.1, peak.h * 0.2, wall.length * 0.1);
+      const v = peak.h * 0.4;
+      // The gable must be wide enough at the top of the window to leave wall beside it.
+      const halfThere = wall.length * Math.min(peak.t, 1 - peak.t) * (1 - (v + r) / peak.h);
+      if (r < 0.4 || halfThere < r + 0.3) return;
+      const x = wall.length * peak.t - r * 1.2;
+      const origin: Vec2 = [wall.a[0] + wall.dir[0] * x, wall.a[1] + wall.dir[1] * x];
+      const frame: Frame = {
+        origin: world(origin, eave + v - r * 1.2),
+        right: [wall.dir[0], 0, -wall.dir[1]],
+        up: [0, 1, 0],
+        normal: [wall.normal[0], 0, -wall.normal[1]],
+        width: r * 2.4,
+        height: r * 2.4,
+      };
+      const c = r * 1.2;
+      // Drawn on the wall rather than cut into it: a rim, the glass and a cross of bars.
+      ringBand(mb, frame, c, c, r, r * 1.18, 0.04, palette.trim);
+      mb.polygon(
+        circle(c, c, r).map((q): Vec3 => {
+          const [u, t] = q;
+          return [
+            frame.origin[0] + frame.right[0] * u + frame.normal[0] * 0.03,
+            frame.origin[1] + t,
+            frame.origin[2] + frame.right[2] * u + frame.normal[2] * 0.03,
+          ];
+        }),
+        palette.glass,
+      );
+      const bar = Math.max(0.05, r * 0.08);
+      rect(mb, frame, c - bar / 2, c - r * 0.95, c + bar / 2, c + r * 0.95, palette.frame, 0.045);
+      rect(mb, frame, c - r * 0.95, c - bar / 2, c + r * 0.95, c + bar / 2, palette.frame, 0.045);
       count++;
     });
   }

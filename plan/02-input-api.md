@@ -19,7 +19,7 @@ interface BuildingInput {
   height?: number;                    // metres, total including roof
   levels?: number;                    // above-ground levels, excluding roof levels
   minHeight?: number;
-  roof?: RoofInput;                   // shape, height, levels, direction, ridge, colour
+  roof?: RoofInput;                   // shape, height, levels, direction, ridge, colour, profile
   colours?: { wall?, roof?, trim?, door? };
   year?: number;                      // construction year, overrides the era roll
   hasAddress?: boolean;               // classification hint
@@ -27,6 +27,7 @@ interface BuildingInput {
   shopProbability?: number;           // types whose style allows a store, when `shop` is not set
   balconies?: boolean;                // force / forbid balconies where the type has them
   entrance?: boolean;                 // false = no entrance door
+  faith?: Faith;                      // places of worship: christian (default), orthodox, muslim, jewish, other
   neighbours?: NeighbourInput[];      // { footprint, height?, minHeight?, sameGroup? }
   roads?: RoadInput[];                // { line, width?, kind?, passage?, covered?: 'yes'|'arcade'|'colonnade' }
   groupKey?: string;                  // same key -> same palette and style
@@ -40,6 +41,11 @@ interface BuildingInput {
 
 `height` is measured from the ground like OSM `height`; `minHeight` lifts the
 wall base.
+
+`roof.profile` (cone, dome and onion roofs only) replaces the shape's own
+outline: pairs of (scale of the footprint, share of the roof height) from the
+eave to the top, swept around the centre. Unusable profiles are ignored.
+`faith` only matters for the `worship` type (styles/worship.md).
 
 ### Parts
 
@@ -70,7 +76,8 @@ other's walls where they touch, up to the lower part's wall top. One part gets
 the entrance: the largest one standing on the ground.
 
 Building types: house, apartments, townhouse, garage, shed, office,
-skyscraper, industrial, station, store, canopy (open-sided roof on posts).
+skyscraper, industrial, station, store, canopy (open-sided roof on posts),
+worship (churches and other places of worship, see styles/worship.md).
 
 Roof shapes: flat, gabled, hipped, half-hipped, pyramidal, skillion, gambrel,
 mansard, dome, onion, cone, round, sawtooth. The curved shapes and sawtooth

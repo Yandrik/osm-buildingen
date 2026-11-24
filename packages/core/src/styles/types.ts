@@ -1,4 +1,4 @@
-import type { BuildingType, RoofShape, WallStyle } from '../types';
+import type { BuildingType, Faith, PartVolume, RoofProfile, RoofShape, WallStyle } from '../types';
 
 /**
  * A value that depends on the era (0 = old, 1 = new): either a constant or
@@ -37,7 +37,8 @@ export type TileRole =
   | 'shopdoor'
   | 'balcony'
   | 'dock'
-  | 'arch';
+  | 'arch'
+  | 'clock';
 
 export interface FacadeTile {
   id: string;
@@ -58,8 +59,12 @@ export interface FacadeTile {
   blockedOk?: boolean;
   /** Minimum cell width in metres the piece needs. */
   minWidth?: number;
+  /** Widest cell the solver may put the tile in (a slit looks lost in a wide bay). Left out = any. */
+  maxWidth?: number;
   /** Only used on buildings that rolled this variant (see TypeStyle.variants). */
   variant?: string;
+  /** Only used on these volumes (ResolvedSpec.volume). Left out = every volume. */
+  volumes?: readonly PartVolume[];
 }
 
 /**
@@ -83,6 +88,11 @@ export interface PaletteSet {
   timber: Weighted<string>;
   glass: string;
   frame: Weighted<string>;
+  /**
+   * Roofs of the towers of a place of worship (slate, copper, lead), where neither the
+   * part nor the building has a mapped roof colour. Left out = the roof colour.
+   */
+  spire?: Weighted<string>;
 }
 
 export interface RoofDetailStyle {
@@ -103,6 +113,51 @@ export interface RoofDetailStyle {
   turret?: Curve;
   /** Raised front above the street wall of a flat roof, carrying a sign (stores). */
   falseFront?: Curve;
+  /** Round window high in each gable wall (places of worship). */
+  gableOculus?: Curve;
+  /** Ball and cross (or what the faith asks for) on the tip of a tower roof (places of worship). */
+  finial?: Curve;
+}
+
+/** A stage standing on the shaft of a steeple. Sizes are multiples of the shaft's width. */
+export interface SteepleStage {
+  /** Square like the shaft, or an octagon whose flats run along the shaft's sides. */
+  plan: 'square' | 'octagon';
+  width: number;
+  /** Height of its walls. */
+  walls: number;
+}
+
+/**
+ * One design for the tower or ridge turret of a church mapped without parts
+ * (pipeline/volumes.ts builds it as parts, so the far massing view has it too).
+ * From the bottom: the shaft, stages on it, and a roof on the top stage.
+ */
+export interface SteepleStyle {
+  /** Facade variants (architectures) it suits. Left out = all. */
+  variants?: readonly string[];
+  /** Faiths it is built for. Left out = 'christian' only. */
+  faiths?: readonly Faith[];
+  weight: Curve;
+  /** Plan of the shaft; towers are always square. Left out = square. */
+  plan?: 'square' | 'octagon';
+  /** Height of the shaft's walls above the ridge of the nave, in shaft widths. */
+  rise: number;
+  stages?: readonly SteepleStage[];
+  /** Roof of the top stage (or of the shaft): height in widths of what it stands on. */
+  roof: { shape: RoofShape; height: number; profile?: RoofProfile; colour?: string };
+  /** Pinnacles on the four corners of the shaft, beside the first stage. Sizes in shaft widths. */
+  pinnacles?: { width: number; walls: number; roof: number };
+}
+
+/** Rows of the facade grid by volume, instead of `levelHeight` (places of worship). */
+export interface VolumeRows {
+  /** Metres per row on the main body. */
+  main: Curve;
+  /** Towers: row height as a multiple of the tower's width, within these limits (metres). */
+  towerPerWidth: number;
+  towerMin: number;
+  towerMax: number;
 }
 
 /**
@@ -185,6 +240,8 @@ export interface TrimStyle {
   band?: Curve;
   /** Cornice under the eave or parapet. */
   cornice?: Curve;
+  /** Walls shorter than this (metres) get no trim. Default 1. */
+  minWall?: number;
 }
 
 export interface TypeStyle {
@@ -203,6 +260,42 @@ export interface TypeStyle {
   /** Parapet height for flat roofs. */
   parapet: Curve;
   bayWidth: Curve;
+  /**
+   * Share of a cell, around its middle, that a neighbour must leave free for an
+   * opening (see context.isBlocked). Left out = 1, the whole cell. Narrow centred
+   * openings (church towers between corner turrets) can do with less.
+   */
+  openingProbe?: number;
+  /**
+   * Where a slim part of the same building stands against a wall (a mapped buttress),
+   * the bays are laid out between such piers instead of evenly along the wall, and
+   * cells learn which of their edges are free (FacadeCell.params `edgeL`, `edgeR`).
+   */
+  pierBays?: boolean;
+  /**
+   * The roof ignores buttress-sized bumps in the outline: its eave runs straight past
+   * them and each gets a flat top at the eave (roofs/eaves.ts).
+   */
+  straightEaves?: boolean;
+  /**
+   * Gabled roofs need only one gable end on outlines that are not plain rectangles;
+   * the other ends are hipped, as over the apse of a church (roofs/gabled.ts).
+   */
+  hippedEnds?: boolean;
+  /** Facade rows by volume instead of by level; the level count is then ignored. */
+  rows?: VolumeRows;
+  /** Towers and ridge turrets for buildings of this type mapped without parts. */
+  steeples?: {
+    towers: readonly SteepleStyle[];
+    turrets: readonly SteepleStyle[];
+    /**
+     * Probability that a plain rectangle gets a polygonal east end (apse): its two
+     * east corners are cut off, inside the outline, and the roof is hipped over them.
+     */
+    apse?: Curve;
+  };
+  /** Probability (per building) of clock faces on its towers. Needs a tile with role 'clock'. */
+  towerClock?: Curve;
   plinth: Curve;
   wallStyles: Weighted<WallStyle>;
   /**

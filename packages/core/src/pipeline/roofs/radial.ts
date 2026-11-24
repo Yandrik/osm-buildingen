@@ -1,6 +1,6 @@
 import { centroid } from '../../geom/polygon';
 import { type Vec2, cross, sub } from '../../geom/vec2';
-import type { RoofFace, RoofGeometry, Vec3In } from '../../types';
+import type { RoofFace, RoofGeometry, RoofProfile, Vec3In } from '../../types';
 import { type RoofContext, noBreaks, zeroHeight } from './index';
 
 /**
@@ -22,7 +22,7 @@ export function radialCentre(outer: readonly Vec2[], boxCentre: Vec2): Vec2 | nu
 }
 
 /** Profile of a radial roof: (scale of the footprint, share of the roof height), bottom to top. */
-type Profile = readonly (readonly [number, number])[];
+type Profile = RoofProfile;
 
 const DOME: Profile = [0, 1, 2, 3, 4, 5].map((k) => {
   const a = (k / 5) * (Math.PI / 2);
@@ -50,7 +50,8 @@ const CONE: Profile = [
 
 /**
  * Roofs made by shrinking the footprint towards a centre while rising:
- * cone, dome and onion. Works on any footprint that has such a centre
+ * cone, dome and onion, or any outline given as `roof.profile` (a lathe: bell
+ * roofs, lanterns, stacked bulbs). Works on any footprint that has such a centre
  * (round towers, apses, regular polygons, rectangles); returns null otherwise.
  */
 export function buildRadial(ctx: RoofContext, shape: 'cone' | 'dome' | 'onion'): RoofGeometry | null {
@@ -59,7 +60,7 @@ export function buildRadial(ctx: RoofContext, shape: 'cone' | 'dome' | 'onion'):
   if (spec.roof.height <= 0) return null;
   const c = radialCentre(outer, spec.metrics.box.center);
   if (!c) return null;
-  const profile = shape === 'dome' ? DOME : shape === 'onion' ? ONION : CONE;
+  const profile = spec.roof.profile ?? (shape === 'dome' ? DOME : shape === 'onion' ? ONION : CONE);
   const ring = (scale: number, share: number): Vec3In[] =>
     outer.map((p) => [
       c[0] + (p[0] - c[0]) * scale,
@@ -85,5 +86,8 @@ export function buildRadial(ctx: RoofContext, shape: 'cone' | 'dome' | 'onion'):
     }
     lower = upper;
   }
+  // A profile that ends with some width left gets a lid.
+  if (((profile[profile.length - 1] as readonly [number, number])[0] ?? 0) > 0)
+    faces.push({ points: lower, kind: 'curved' });
   return { faces, outline: [], heightAt: zeroHeight, breaks: noBreaks };
 }

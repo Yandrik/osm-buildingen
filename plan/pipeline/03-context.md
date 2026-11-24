@@ -22,6 +22,12 @@ blocked up to the neighbour's height (if known; otherwise for the full wall
 height). Blocked spans get no doors, windows, balconies or overhang. Shared
 spans additionally get no trim.
 
+A facade cell counts as blocked when blocked spans cover more than a quarter
+of it at the cell's mid height. A type style may test only the middle of the
+cell instead (`openingProbe`, the share around the middle): places of worship
+use a third, since their openings are narrow and centred and corner turrets
+mapped as parts would otherwise block every face of the tower between them.
+
 Neighbours with `sameGroup` (garage attached to its house) block in the same
 way but also hint that a connecting door is plausible; not used yet.
 

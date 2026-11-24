@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseDirection, parseLength, parseLevels, parseRoofShape, parseYear } from '../src';
-import { classify, skipReason, specialReason } from '../src/classify';
+import { classify, faithOf, skipReason, specialReason } from '../src/classify';
 import { roadClass } from '../src/roads';
 import { emptyTags } from '../src/tags';
 import type { Tags } from '../src/types';
@@ -138,9 +138,33 @@ describe('classification', () => {
     expect(classify(tags({ building: 'yes' }), { ...one, denseRow: true }).type).toBe('townhouse');
   });
 
+  it('reads the faith of a place of worship from religion, denomination and building', () => {
+    expect(faithOf(tags({ building: 'church', religion: 'christian' }))).toBe('christian');
+    expect(faithOf(tags({ religion: 'christian', denomination: 'russian_orthodox' }))).toBe('orthodox');
+    expect(faithOf(tags({ religion: 'christian', denomination: 'greek_orthodox' }))).toBe('orthodox');
+    expect(faithOf(tags({ religion: 'muslim' }))).toBe('muslim');
+    expect(faithOf(tags({ religion: 'jewish' }))).toBe('jewish');
+    expect(faithOf(tags({ religion: 'buddhist' }))).toBe('other');
+    // Without a religion the building value decides, and failing that nothing is said.
+    expect(faithOf(tags({ building: 'mosque' }))).toBe('muslim');
+    expect(faithOf(tags({ building: 'synagogue' }))).toBe('jewish');
+    expect(faithOf(tags({ building: 'yes', amenity: 'place_of_worship' }))).toBeUndefined();
+  });
+
+  it('types places of worship and the presbytery next to them', () => {
+    for (const building of ['church', 'cathedral', 'chapel', 'mosque', 'synagogue', 'temple']) {
+      expect(specialReason(tags({ building }))).toBeUndefined();
+      expect(classify(tags({ building }), ctx).type).toBe('worship');
+    }
+    expect(specialReason(tags({ building: 'yes', amenity: 'place_of_worship' }))).toBeUndefined();
+    expect(classify(tags({ building: 'yes', amenity: 'place_of_worship' }), ctx).type).toBe('worship');
+    expect(classify(tags({ building: 'presbytery' }), { ...ctx, area: 400 }).type).toBe('house');
+    // A ruined church stays a massing-only special.
+    expect(specialReason(tags({ building: 'church', ruins: 'yes' }))).toBe('ruins=yes');
+  });
+
   it('flags special buildings and skips non-buildings', () => {
-    expect(specialReason(tags({ building: 'church' }))).toBe('building=church');
-    expect(specialReason(tags({ building: 'yes', amenity: 'place_of_worship' }))).toBeDefined();
+    expect(specialReason(tags({ building: 'castle' }))).toBe('building=castle');
     expect(specialReason(tags({ building: 'yes', man_made: 'tower' }))).toBeDefined();
     expect(specialReason(tags({ building: 'house' }))).toBeUndefined();
     expect(skipReason(tags({ building: 'construction' }))).toBeDefined();

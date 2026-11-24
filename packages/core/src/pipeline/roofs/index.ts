@@ -17,6 +17,11 @@ export interface RoofContext {
   overhang: number[];
   /** Absolute height of the eave line above the ground. */
   eave: number;
+  /**
+   * Gabled roofs on outlines with more than four corners: one gable end is enough,
+   * every other end is hipped (a church with an apse); without any, hipped all round.
+   */
+  hippedEnds?: boolean;
 }
 
 /**

@@ -19,9 +19,12 @@ export type {
   RailingKind,
   RowKind,
   SocketTable,
+  SteepleStage,
+  SteepleStyle,
   StylePack,
   TileRole,
   TypeStyle,
+  VolumeRows,
   Weighted,
 } from './styles/types';
 export { Rng, hashString, seedFrom } from './rng';

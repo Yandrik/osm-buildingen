@@ -22,6 +22,8 @@ export const BUILDING_TYPES = [
   'store',
   /** Roof on posts, no walls (OSM building=roof, carports, shelters, fuel-station canopies). */
   'canopy',
+  /** Church, chapel, mosque, synagogue, temple: tall single-storey bays and towers. */
+  'worship',
 ] as const;
 export type BuildingType = (typeof BUILDING_TYPES)[number];
 
@@ -44,6 +46,20 @@ export type RoofShape = (typeof ROOF_SHAPES)[number];
 
 export type Region = 'de' | 'us';
 
+/**
+ * Whose place of worship a building is. Picks what crowns its towers (a cross, an
+ * orthodox cross, a crescent, nothing) and the tower a church mapped without parts
+ * gets (see plan/styles/worship.md).
+ */
+export type Faith = 'christian' | 'orthodox' | 'muslim' | 'jewish' | 'other';
+
+/**
+ * Outline of a roof that is swept around its centre (cone, dome, onion): pairs of
+ * (scale of the footprint, share of the roof height), from the eave (share 0) to the
+ * top (share 1). A scale above 1 bulges out past the walls.
+ */
+export type RoofProfile = readonly (readonly [number, number])[];
+
 export interface RoofInput {
   shape?: RoofShape;
   /** Height of the roof above the eave, metres. */
@@ -57,6 +73,8 @@ export interface RoofInput {
   /** Eave overhang in metres. Default: from the style. */
   overhang?: number;
   colour?: string;
+  /** Cone, dome and onion roofs only: this outline instead of the shape's own (see RoofProfile). */
+  profile?: RoofProfile;
 }
 
 export interface ColourInput {
@@ -150,6 +168,8 @@ export interface BuildingInput {
    * rolled one. Ignored when no tile of the type uses that variant.
    */
   facadeVariant?: string;
+  /** Places of worship only: whose it is. Default 'christian'. */
+  faith?: Faith;
   neighbours?: readonly NeighbourInput[];
   roads?: readonly RoadInput[];
   /** Buildings with the same key share era and palette. */
@@ -208,7 +228,17 @@ export interface ResolvedRoof {
   overhang: number;
   /** Parapet height for flat roofs. */
   parapet: number;
+  /** Outline of a cone, dome or onion roof when the input gave one. */
+  profile?: RoofProfile;
 }
+
+/**
+ * Role of one volume of a building, judged from its geometry (pipeline/volumes.ts):
+ *   main   the building itself, or a nave, aisle, apse or wing
+ *   tower  tall and slender, standing on the ground or on another part
+ *   small  pinnacles, buttresses and roof-only parts: plain wall only
+ */
+export type PartVolume = 'main' | 'tower' | 'small';
 
 export interface ResolvedSpec {
   type: BuildingType;
@@ -241,6 +271,10 @@ export interface ResolvedSpec {
   balcony: ResolvedBalcony | null;
   bayWidth: number;
   plinthHeight: number;
+  /** What this volume is within its building; picks facade tiles (FacadeTile.volumes). */
+  volume: PartVolume;
+  /** Whose place of worship it is ('christian' for every other type too; nothing reads it there). */
+  faith: Faith;
   /** Things the generator decided or fell back to, for debugging. */
   notes: string[];
 }
@@ -287,8 +321,11 @@ export interface RoofFace {
   holes?: Vec3In[][];
   /** `curved` faces approximate a curved surface (domes, barrel roofs); they get no dormers or chimneys. */
   kind: 'slope' | 'flat' | 'curved';
-  /** Drawn in the glass colour instead of the roof colour (sawtooth glazing). */
-  material?: 'glass';
+  /**
+   * Drawn in another colour than the roof's: glass (sawtooth glazing), or the wall
+   * colour (stone tops of buttresses and bits of gable wall, see roofs/eaves.ts).
+   */
+  material?: 'glass' | 'wall';
 }
 
 export interface RoofGeometry {
@@ -344,7 +381,11 @@ export interface FacadeCell {
   /** Tile id from the style pack, or '#arch' for a passage cell. */
   tile: string;
   role: TileRole;
-  /** Extra parameters for built-in tiles (the passage arch: `from`, `to`, `height` of its first opening). */
+  /**
+   * Parameters of this cell alone; they go on top of the tile's own. The passage arch:
+   * `from`, `to`, `height` of its first opening. Bays between piers (TypeStyle.pierBays):
+   * `edgeL`, `edgeR` = 1 where that edge of the cell may carry a buttress.
+   */
   params?: Record<string, number>;
   /** Passage openings in an '#arch' cell, in order along the wall. */
   openings?: FacadeOpening[];

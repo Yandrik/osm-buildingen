@@ -67,7 +67,7 @@ export function addTrim(stage: TrimStage): void {
   for (const w of walls) rings.set(w.ring, [...(rings.get(w.ring) ?? []), w]);
 
   walls.forEach((wall, w) => {
-    if (wall.length < 1) return;
+    if (wall.length < (style.minWall ?? 1)) return;
     const ring = rings.get(wall.ring) ?? [];
     const k = ring.indexOf(wall);
     const prev = ring[(k + ring.length - 1) % ring.length] as WallSegment;

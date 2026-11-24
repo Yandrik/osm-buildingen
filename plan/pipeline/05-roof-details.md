@@ -20,6 +20,8 @@ Candidates are slots along each roof face, aligned to the facade bays below.
 | chimney | 0 – 2 per building near the ridge; mostly older eras |
 | solar panels | modern eras, on the face closest to south |
 | attic window | one per gable area when wide enough |
+| gable oculus | places of worship: a round window high in each gable of the main body |
+| finial | places of worship: on the tip of a tower roof that comes to one point; a ball and what the faith asks for (cross, three-barred cross, second ball, nothing) |
 
 A small constraint pass keeps dormers symmetric around the face centre and at
 least one bay apart.

@@ -78,13 +78,14 @@ export function assemble(
       const piece = (tile && PIECES[tile.piece]) ?? PIECES.wall;
       const timber = spec.wallStyle === 'timber' && cell.row >= spec.wallStyleFromLevel && wall.length >= 1.2;
       const ctx: PieceContext = {
-        params: tile?.params ?? {},
+        params: cell.params && tile?.params ? { ...tile.params, ...cell.params } : (tile?.params ?? {}),
         palette,
         wall: palette.wall,
         plinth: cell.row === 0 && spec.base < 0.5 ? Math.min(spec.plinthHeight, cell.height * 0.4) : 0,
         timber,
         era: spec.era,
         seed: seedFrom(seed, cell.wall, cell.row, cell.column),
+        faith: spec.faith,
       };
       const frame = wallFrame(wall, cell.x, cell.y, cell.width, cell.height);
       if (cell.role === 'arch') arch(mb, frame, { ...ctx, timber: false }, cell.openings ?? []);
@@ -142,7 +143,14 @@ export function assemble(
     const pts = face.points.map(worldAbs);
     mb.polygon(
       pts,
-      face.material === 'glass' ? palette.glass : palette.roof,
+      face.material === 'glass'
+        ? palette.glass
+        : face.material === 'wall'
+          ? // Level stone tops catch the light; toned down so they do not outshine the walls.
+            face.kind === 'flat'
+            ? shade(palette.wall, 0.8)
+            : palette.wall
+          : palette.roof,
       face.holes?.map((h) => h.map(worldAbs)),
     );
     if (slab && face.kind !== 'curved' && !face.holes?.length) {

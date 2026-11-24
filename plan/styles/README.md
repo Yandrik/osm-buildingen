@@ -17,6 +17,14 @@ interface TypeStyle {
   roofPitch: EraRange;              // degrees
   overhang: EraRange;               // metres
   bayWidth: EraRange;
+  openingProbe?: number;            // share of a cell's middle a neighbour must leave free; default 1
+  // Places of worship (worship.md):
+  rows?: VolumeRows;                // facade rows by volume instead of by level
+  pierBays?: boolean;               // bays laid out between mapped buttresses
+  straightEaves?: boolean;          // roof ignores buttress bumps in the outline
+  hippedEnds?: boolean;             // one gable end is enough, other ends hipped
+  steeples?: { towers, turrets, apse? };  // designs for churches mapped without parts
+  towerClock?: EraCurve;            // probability of clock faces on a tower
   tiles: FacadeTile[];              // see pipeline/04-facade-wfc.md
   sockets: SocketTable;
   trim: TrimStyle;                  // plinth, level bands, corner boards, eaves
@@ -48,3 +56,4 @@ tile that fits blocked cells, weights are finite and non-negative.
 - [us-suburban.md](us-suburban.md)
 - [non-residential.md](non-residential.md) (shared by both regions with
   regional tweaks)
+- [worship.md](worship.md) (churches, mosques, synagogues; shared by both regions)

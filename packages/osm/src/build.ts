@@ -9,7 +9,14 @@ import {
   seedFrom,
 } from '@osm-buildingen/core';
 import { type Attributes, estimateHeight, partInput, readAttributes } from './attributes';
-import { SHOP_NODE_AMENITY, classify, skipReason, specialReason } from './classify';
+import {
+  SHOP_NODE_AMENITY,
+  WORSHIP_ARCHITECTURE,
+  classify,
+  faithOf,
+  skipReason,
+  specialReason,
+} from './classify';
 import {
   type Box,
   GridIndex,
@@ -489,6 +496,10 @@ export function buildInputs(data: OsmData, options: BuildOptions): BuildResult {
       input.parts = b.parts.map((p): PartInput => partInput(polygon(p), readAttributes(p.tags)));
     }
     if (cls.type) input.type = cls.type;
+    const architecture = WORSHIP_ARCHITECTURE[s.tags['building:architecture'] ?? ''];
+    if (cls.type === 'worship' && architecture) input.facadeVariant = architecture;
+    const faith = cls.type === 'worship' ? faithOf(s.tags) : undefined;
+    if (faith) input.faith = faith;
     const a = b.attrs;
     if (a.height !== undefined) input.height = a.height;
     if (a.levels !== undefined) input.levels = a.levels;

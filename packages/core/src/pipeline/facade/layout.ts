@@ -1,3 +1,4 @@
+import { type Vec2, cross } from '../../geom/vec2';
 import { Rng, seedFrom } from '../../rng';
 import { getStylePack } from '../../styles/registry';
 import { type FacadeTile, type RowKind, type TileRole, evalCurve } from '../../styles/types';
@@ -7,6 +8,7 @@ import type {
   FacadeLayout,
   FacadeOpening,
   ResolvedSpec,
+  Span,
   WallContext,
   WallSegment,
 } from '../../types';
@@ -18,6 +20,8 @@ import { DOWN, LEFT, RIGHT, type SolverProblem, UP, solve } from './solver';
 
 /** Walls shorter than this get one cell that stays blank. */
 const MIN_WALL = 1.2;
+/** A wall has to be this long to count as the front of a building whose front is given. */
+const MIN_FRONT_WALL = 2.6;
 const MAX_ATTEMPTS = 8;
 /**
  * Roles the solver may place on its own. Everything else is placed by the rules below;
@@ -42,7 +46,10 @@ interface Tables {
 /** Tiles available on this building plus their compatibility masks. */
 function buildTables(spec: ResolvedSpec): Tables {
   const style = getStylePack(spec.packId).types[spec.type];
-  const tiles = style.tiles.filter((t) => !t.variant || t.variant === spec.facadeVariant);
+  const tiles = style.tiles.filter(
+    (t) =>
+      (!t.variant || t.variant === spec.facadeVariant) && (!t.volumes || t.volumes.includes(spec.volume)),
+  );
   const n = tiles.length;
   const compat = [new Uint32Array(n), new Uint32Array(n), new Uint32Array(n), new Uint32Array(n)];
   for (let a = 0; a < n; a++) {
@@ -64,29 +71,96 @@ function buildTables(spec: ResolvedSpec): Tables {
   return { tiles, compat };
 }
 
+/** A touching part up to this wide is a pier (buttress), not a wing. */
+const PIER_MAX = 3.2;
+/** Clock faces hang at least this high above the ground. */
+const MIN_CLOCK_HEIGHT = 6;
+
+/** Stretches of the wall where a slim part of the same building stands against it, bottom to at least mid-height. */
+function piersOn(ctx: WallContext, spec: ResolvedSpec, length: number): [number, number][] {
+  const piers = ctx.shared
+    .filter(
+      (s: Span) =>
+        s.to - s.from <= PIER_MAX &&
+        s.to - s.from >= 0.3 &&
+        (s.minHeight ?? 0) <= spec.base + 1 &&
+        s.height >= spec.base + spec.wallHeight * 0.4,
+    )
+    .map((s): [number, number] => [Math.max(0, s.from), Math.min(length, s.to)])
+    .sort((p, q) => p[0] - q[0]);
+  const merged: [number, number][] = [];
+  for (const p of piers) {
+    const last = merged[merged.length - 1];
+    if (last && p[0] <= last[1] + 0.3) last[1] = Math.max(last[1], p[1]);
+    else merged.push([p[0], p[1]]);
+  }
+  return merged;
+}
+
+interface Column {
+  x: number;
+  width: number;
+  /** A pier stands against this stretch. */
+  pier: boolean;
+}
+
+/** Evenly divided columns of about `bay` over [from, to]; an odd number when `odd`. */
+function evenColumns(from: number, to: number, bay: number, odd: boolean): Column[] {
+  const length = to - from;
+  const n = odd
+    ? 2 * Math.max(0, Math.round((length / bay - 1) / 2)) + 1
+    : Math.max(1, Math.round(length / bay));
+  const width = length / n;
+  return Array.from({ length: n }, (_, c) => ({ x: from + c * width, width, pier: false }));
+}
+
 function buildCells(
   spec: ResolvedSpec,
   walls: WallSegment[],
   context: WallContext[],
+  front: Vec2 | undefined,
 ): { cells: Cell[]; columns: number[] } {
   const cells: Cell[] = [];
   const columns: number[] = [];
   const levels = spec.levelHeights.length;
+  const style = getStylePack(spec.packId).types[spec.type];
+  const probe = Math.min(1, style.openingProbe ?? 1);
+  // Towers of a type laid out by volume: an odd number of bays, so a wall has a middle one
+  // (for the clock). The same goes for walls that face a given front (for the portal).
+  const tower = style.rows !== undefined && spec.volume === 'tower';
+  const facesFront = (wall: WallSegment): boolean =>
+    front !== undefined && wall.normal[0] * front[0] + wall.normal[1] * front[1] > 0.7;
   // A part that starts above the ground (tower top, bridge) has no ground row.
   const grounded = spec.base < 0.5;
   walls.forEach((wall, w) => {
-    const narrow = wall.length < MIN_WALL;
-    const n = narrow ? 1 : Math.max(1, Math.round(wall.length / spec.bayWidth));
-    columns.push(n);
-    const width = wall.length / n;
     const ctx = context[w] as WallContext;
+    const short = wall.length < MIN_WALL;
+    const odd = tower || facesFront(wall);
+    let cols: Column[];
+    const piers = style.pierBays && !short ? piersOn(ctx, spec, wall.length) : [];
+    if (short) cols = [{ x: 0, width: wall.length, pier: false }];
+    else if (piers.length === 0) cols = evenColumns(0, wall.length, spec.bayWidth, odd);
+    else {
+      // Bays between the piers; each pier is a column of its own.
+      cols = [];
+      let at = 0;
+      for (const [from, to] of [...piers, [wall.length, wall.length] as [number, number]]) {
+        if (from - at > 0.05) cols.push(...evenColumns(at, from, spec.bayWidth, false));
+        if (to - from > 0.05) cols.push({ x: from, width: to - from, pier: true });
+        at = Math.max(at, to);
+      }
+    }
+    const n = cols.length;
+    columns.push(n);
     let y = 0;
     for (let row = 0; row < levels; row++) {
       const height = spec.levelHeights[row] as number;
       const kind: RowKind =
         row === 0 && grounded ? 'ground' : row === levels - 1 && row > 0 ? 'top' : 'upper';
       for (let column = 0; column < n; column++) {
-        const x = column * width;
+        const { x, width, pier } = cols[column] as Column;
+        // Between piers a leftover stretch can be as slim as a short wall.
+        const narrow = short || (piers.length > 0 && width < MIN_WALL);
         cells.push({
           wall: w,
           column,
@@ -95,7 +169,15 @@ function buildCells(
           y,
           width,
           height,
-          blocked: narrow || isBlocked(ctx, x, x + width, spec.base + y + height * 0.5),
+          // A pier's column is judged over its whole width: blocked wherever the pier reaches.
+          blocked:
+            narrow ||
+            isBlocked(
+              ctx,
+              x + (pier ? 0 : (width * (1 - probe)) / 2),
+              x + (pier ? width : (width * (1 + probe)) / 2),
+              spec.base + y + height * 0.5,
+            ),
           tile: '',
           kind,
           narrow,
@@ -127,6 +209,14 @@ function centreOut(n: number, preferRight: boolean): number[] {
   });
 }
 
+/** What a part is told about the building it belongs to (see generate.ts). */
+export interface FacadeHints {
+  /** Direction the building's front faces, when the entrance belongs on that side whatever the streets do. */
+  front?: Vec2;
+  /** False for towers that leave the clock to another tower of the building. Default true. */
+  clock?: boolean;
+}
+
 /**
  * Stage 4. Lays out the facade grid, applies the rules plain adjacency cannot
  * express (door, garage doors, shop front, symmetry) and lets the solver fill the rest.
@@ -137,11 +227,14 @@ export function layoutFacade(
   spec: ResolvedSpec,
   walls: WallSegment[],
   context: WallContext[],
+  hints: FacadeHints = {},
 ): FacadeLayout {
   // Roofs on posts have no walls to lay out.
   if (spec.type === 'canopy') return { cells: [], streetWall: -1, attempts: 0, fallback: false };
+  const style = getStylePack(spec.packId).types[spec.type];
   const { tiles, compat } = buildTables(spec);
-  const { cells, columns } = buildCells(spec, walls, context);
+  const { front } = hints;
+  const { cells, columns } = buildCells(spec, walls, context, front);
   const rng = new Rng(seedFrom(GENERATOR_VERSION, 'facade', input.seed));
   const levels = spec.levelHeights.length;
 
@@ -212,6 +305,31 @@ export function layoutFacade(
     }
   });
 
+  // A given front beats the streets: the wall that faces it and lies furthest that way.
+  if (front) {
+    let best = Number.NEGATIVE_INFINITY;
+    let facing = -1;
+    walls.forEach((wall, w) => {
+      if (wall.ring !== 0 || wall.length < MIN_FRONT_WALL) return;
+      if (wall.normal[0] * front[0] + wall.normal[1] * front[1] < 0.7) return;
+      const n = columns[w] as number;
+      const free = Array.from({ length: n }, (_, c) => cells[cellAt(w, 0, c)] as Cell).some(
+        (c) => !c.blocked && c.fixed < 0,
+      );
+      if (!free) return;
+      // Quantised to decimetres, so two walls in one line do not swap on float noise; then the longer.
+      const reach =
+        Math.round((((wall.a[0] + wall.b[0]) * front[0] + (wall.a[1] + wall.b[1]) * front[1]) / 2) * 10) *
+          1000 +
+        wall.length;
+      if (reach > best) {
+        best = reach;
+        facing = w;
+      }
+    });
+    if (facing >= 0) streetWall = facing;
+  }
+
   const fix = (index: number, tile: number): boolean => {
     const cell = cells[index] as Cell;
     if (tile < 0 || cell.blocked || cell.fixed >= 0) return false;
@@ -280,11 +398,33 @@ export function layoutFacade(
       }
       // Plain entrance. Symmetric buildings take the exact middle; others may sit one bay off.
       const pick = spec.symmetric || free.length < 3 ? 0 : rng.fork('doorColumn').weightedIndex([3, 1, 1]);
-      fix(
-        cellAt(streetWall, 0, free[Math.min(pick, free.length - 1)] as number),
-        byRole('door', kind, width),
-      );
+      const at = cellAt(streetWall, 0, free[Math.min(pick, free.length - 1)] as number);
+      // The door that fits this very bay: bays between piers differ in width.
+      fix(at, byRole('door', kind, (cells[at] as Cell).width));
     }
+  }
+
+  // --- Tower clocks: the middle bay of the row below the top one, on every free wall. ---
+  const clock = tiles.findIndex((t) => t.role === 'clock');
+  if (
+    clock >= 0 &&
+    hints.clock !== false &&
+    spec.volume === 'tower' &&
+    levels >= 2 &&
+    new Rng(seedFrom(GENERATOR_VERSION, 'group', input.groupKey ?? input.seed))
+      .fork('clock')
+      .chance(evalCurve(style.towerClock ?? 0, spec.era))
+  ) {
+    const row = levels - 2;
+    walls.forEach((_, w) => {
+      const n = columns[w] as number;
+      if (n % 2 === 0) return;
+      const index = cellAt(w, row, (n - 1) / 2);
+      const cell = cells[index] as Cell;
+      if (spec.base + cell.y < MIN_CLOCK_HEIGHT || cell.width < ((tiles[clock] as FacadeTile).minWidth ?? 0))
+        return;
+      fix(index, clock);
+    });
   }
 
   // --- Stores: one roller door for deliveries on the most open wall that is not the front. ---
@@ -328,6 +468,7 @@ export function layoutFacade(
       if (!FREE_ROLES.includes(t.role)) return;
       if (!t.rows.includes(cell.kind)) return;
       if ((t.minWidth ?? 0) > cell.width) return;
+      if (t.maxWidth !== undefined && t.maxWidth < cell.width) return;
       if (cell.blocked && !t.blockedOk) return;
       if (cell.narrow && t.role !== 'blank') return;
       mask |= 1 << ti;
@@ -403,6 +544,37 @@ export function layoutFacade(
         )
       : new Map();
 
+  // --- Bays between piers: which edges of a cell are free to carry a buttress of their own. ---
+  const edges = new Map<number, { edgeL: number; edgeR: number }>();
+  if (style.pierBays) {
+    const outer = walls.filter((w) => w.ring === 0);
+    walls.forEach((wall, w) => {
+      const k = outer.indexOf(wall);
+      const prev = k >= 0 ? (outer[(k + outer.length - 1) % outer.length] as WallSegment) : wall;
+      const next = k >= 0 ? (outer[(k + 1) % outer.length] as WallSegment) : wall;
+      // An outside corner with a real wall beyond it; at an inside corner the mapped outline already has the pier.
+      // …and nothing standing against that wall at the corner (a tower beside the nave).
+      const taken = (other: WallSegment, at: number): boolean =>
+        (context[walls.indexOf(other)]?.blocked ?? []).some((s) => s.from <= at + 0.3 && s.to >= at - 0.3);
+      const cornerStart =
+        k >= 0 && cross(prev.dir, wall.dir) > 0.2 && prev.length >= MIN_WALL && !taken(prev, prev.length);
+      const cornerEnd =
+        k >= 0 && cross(wall.dir, next.dir) > 0.2 && next.length >= MIN_WALL && !taken(next, 0);
+      const n = columns[w] as number;
+      for (let row = 0; row < levels; row++) {
+        for (let c = 0; c < n; c++) {
+          const index = cellAt(w, row, c);
+          const open = (i: number): boolean => !(cells[i] as Cell).blocked;
+          if (!open(index)) continue;
+          edges.set(index, {
+            edgeL: (c > 0 ? open(index - 1) : cornerStart) ? 1 : 0,
+            edgeR: (c < n - 1 ? open(index + 1) : cornerEnd) ? 1 : 0,
+          });
+        }
+      }
+    });
+  }
+
   const out: FacadeCell[] = cells.map((cell, index) => ({
     wall: cell.wall,
     column: cell.column,
@@ -426,6 +598,7 @@ export function layoutFacade(
       : {
           tile: (tiles[chosen[index] as number] as FacadeTile).id,
           role: (tiles[chosen[index] as number] as FacadeTile).role,
+          ...(edges.has(index) ? { params: edges.get(index) } : {}),
           ...(balconies.has(index) ? { balcony: balconies.get(index) } : {}),
         }),
   }));

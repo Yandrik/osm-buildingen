@@ -1,11 +1,11 @@
-import type { BuildingType } from '@osm-buildingen/core';
+import type { BuildingType, Faith } from '@osm-buildingen/core';
 import type { Tags } from './types';
 
 /*
  * Tag -> building type tables. Data, so that new values are one line each.
  * Order of evaluation (see `classify`):
  *   1. skip rules (SKIP_BUILDING, location=underground)
- *   2. special buildings (SPECIAL_*), emitted as massing
+ *   2. special buildings (SPECIAL_*), emitted as massing (places of worship are a type, see BUILDING_TYPE)
  *   3. BUILDING_TYPE[building]
  *   4. for building=yes and unknown values: OTHER_TYPE rules on other tags
  *   5. shop on the building or a shop node inside it
@@ -39,6 +39,8 @@ export const BUILDING_TYPE: Readonly<Record<string, BuildingType | typeof RESIDE
   farm: 'house',
   cabin: 'house',
   villa: 'house',
+  // Parish house: next to the church, a large old house rather than apartments.
+  presbytery: 'house',
   residential: RESIDENTIAL,
   apartments: 'apartments',
   dormitory: 'apartments',
@@ -90,10 +92,20 @@ export const BUILDING_TYPE: Readonly<Record<string, BuildingType | typeof RESIDE
   shop: 'store',
   train_station: 'station',
   transportation: 'station',
+  church: 'worship',
+  cathedral: 'worship',
+  chapel: 'worship',
+  basilica: 'worship',
+  mosque: 'worship',
+  synagogue: 'worship',
+  temple: 'worship',
+  shrine: 'worship',
+  religious: 'worship',
 };
 
 /** Type rules on other tags, tried in order for `building=yes` and unknown values. */
 export const OTHER_TYPE: readonly { key: string; values?: readonly string[]; type: BuildingType }[] = [
+  { key: 'amenity', values: ['place_of_worship'], type: 'worship' },
   { key: 'railway', values: ['station', 'halt'], type: 'station' },
   { key: 'public_transport', values: ['station'], type: 'station' },
   { key: 'amenity', values: ['bus_station', 'ferry_terminal'], type: 'station' },
@@ -134,15 +146,6 @@ export const OTHER_TYPE: readonly { key: string; values?: readonly string[]; typ
 
 /** `building=*` values that mark a special (landmark) building. */
 export const SPECIAL_BUILDING: ReadonlySet<string> = new Set([
-  'church',
-  'cathedral',
-  'chapel',
-  'basilica',
-  'mosque',
-  'synagogue',
-  'temple',
-  'shrine',
-  'religious',
   'monastery',
   'castle',
   'palace',
@@ -160,9 +163,69 @@ export const SPECIAL_BUILDING: ReadonlySet<string> = new Set([
   'gatehouse',
 ]);
 
+/**
+ * `building:architecture` -> facade variant of the worship type (see the core style
+ * pack). Only used for places of worship; other types have variants of their own.
+ */
+export const WORSHIP_ARCHITECTURE: Readonly<Record<string, string>> = {
+  romanesque: 'romanesque',
+  'neo-romanesque': 'romanesque',
+  romanesque_revival: 'romanesque',
+  gothic: 'gothic',
+  'neo-gothic': 'gothic',
+  gothic_revival: 'gothic',
+  brick_gothic: 'gothic',
+  'brick-gothic': 'gothic',
+  baroque: 'classic',
+  'neo-baroque': 'classic',
+  rococo: 'classic',
+  renaissance: 'classic',
+  'neo-renaissance': 'classic',
+  classicism: 'classic',
+  neoclassicism: 'classic',
+  historicism: 'classic',
+  modern: 'modern',
+  brutalist: 'modern',
+  brutalism: 'modern',
+  postmodern: 'modern',
+  contemporary: 'modern',
+};
+
+/** `religion` -> faith of a place of worship (core `BuildingInput.faith`). Unknown religions are 'other'. */
+export const RELIGION_FAITH: Readonly<Record<string, Faith>> = {
+  christian: 'christian',
+  muslim: 'muslim',
+  jewish: 'jewish',
+};
+
+/** `building` values that say whose place of worship it is when `religion` is missing. */
+export const BUILDING_FAITH: Readonly<Record<string, Faith>> = {
+  church: 'christian',
+  cathedral: 'christian',
+  chapel: 'christian',
+  basilica: 'christian',
+  mosque: 'muslim',
+  synagogue: 'jewish',
+  temple: 'other',
+  shrine: 'other',
+};
+
+/**
+ * Faith of a place of worship from `religion`, `denomination` and `building`, or
+ * undefined when the tags do not say (core then assumes a church). Orthodox
+ * denominations (`russian_orthodox`, `greek_orthodox`, …) are a faith of their own:
+ * their churches carry onion domes and three-barred crosses.
+ */
+export function faithOf(tags: Tags): Faith | undefined {
+  const religion = tags.religion;
+  if (religion === undefined) return BUILDING_FAITH[tags.building ?? ''];
+  const faith = RELIGION_FAITH[religion] ?? 'other';
+  if (faith === 'christian' && (tags.denomination ?? '').includes('orthodox')) return 'orthodox';
+  return faith;
+}
+
 /** Other tags that mark a special building. */
 export const SPECIAL_TAG: readonly { key: string; values?: readonly string[] }[] = [
-  { key: 'amenity', values: ['place_of_worship'] },
   {
     key: 'man_made',
     values: ['tower', 'water_tower', 'chimney', 'lighthouse', 'silo', 'cooling_tower', 'storage_tank'],

@@ -146,6 +146,21 @@ Recorded in `spec.notes` (visible in `debug`):
   ridge on the box axis (the old "one big gable") -> flat.
 - half-hipped, gambrel: no gable ends or skeleton fails -> gabled.
 
+With `hippedEnds` (a style option, places of worship) a gabled roof on an
+outline with more than four corners needs only one wing end: the others are
+hipped, as over an apse, and without any the roof is hipped all round.
+
+## Straight eaves
+
+`roofs/eaves.ts`, for styles with `straightEaves` (places of worship). Mappers
+draw buttresses into the outline as bumps about a metre deep (out of the wall,
+across at most 3.2 m, back in; also diagonally at a corner). A roof on that
+outline gets a tooth over each. So the roof is built on the outline without the
+bumps and then fitted to the real one: a flat top on every buttress at the eave
+(`RoofFace.material: 'wall'`), the piece of gable wall above a buttress that
+stands against a gable end, `breaks` answered for the real walls (stretches of
+the straight ones), and buttress walls that end at the eave.
+
 ## Multi-part buildings
 
 Each part gets its own massing. Walls shared between parts are detected (edge
@@ -165,7 +180,13 @@ flat if that fails.
 | round | Barrel roof: the footprint is cut into strips parallel to the ridge, each strip a flat face on an arc (`roofs/round.ts`). Gable walls follow the same profile. |
 | pyramidal | When tagged it is tried on any footprint with such a centre; when rolled only on squarish ones. |
 
-These shapes are never rolled; they only come from the input. Their faces have
+Cone, dome and onion take another outline from `roof.profile`: any list of
+(scale, share of the height) pairs, a lathe. Bell roofs with a lantern and
+orthodox bulbs are profiles in the style pack. A profile that ends with some
+width left gets a lid.
+
+These shapes are never rolled; they only come from the input (or from a
+steeple design, see styles/worship.md). Their faces have
 kind `curved` and get no dormers or chimneys.
 
 ## Gabled roofs with holes

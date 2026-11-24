@@ -92,16 +92,23 @@ does not depend on element order.
      `C19` (1850), `early/mid/late C19` (1815/1850/1885), `19th century`,
      ranges `1890..1900` / `1890-1900` (midpoint), `before/after 1900` (∓10).
 5. **Type** (tables in `src/classify.ts`):
-   - Special first (`SPECIAL_BUILDING`, `SPECIAL_TAG`): church, cathedral,
-     chapel, basilica, mosque, synagogue, temple, shrine, religious, monastery,
+   - Special first (`SPECIAL_BUILDING`, `SPECIAL_TAG`): monastery,
      castle, palace, fort, tower, bell_tower, water_tower, transformer_tower,
      silo, bunker, ruins, stadium, grandstand, triumphal_arch, gatehouse; or
-     `amenity=place_of_worship`, `man_made=tower|water_tower|chimney|lighthouse|
+     `man_made=tower|water_tower|chimney|lighthouse|
      silo|cooling_tower|storage_tank`, `historic=castle|city_gate|tower|fort|
      monastery|church|ruins|citywalls`, `leisure=stadium`, `ruins=yes`.
      → `meta.special`, `detail: 'massing'`, type left to core.
+   - Places of worship are a type, not special: church, cathedral, chapel,
+     basilica, mosque, synagogue, temple, shrine, religious, and
+     `amenity=place_of_worship` on `building=yes` → worship, full detail.
+     `building:architecture` → `facadeVariant` (`WORSHIP_ARCHITECTURE`:
+     romanesque, gothic, classic, modern; see styles/worship.md).
+     `religion`, `denomination` and the `building` value → `faith`
+     (`faithOf`: any orthodox denomination is `orthodox`; without `religion`
+     mosque, synagogue, temple and church say it themselves; else unset).
    - `building=*` (`BUILDING_TYPE`): house/detached/semidetached_house/bungalow/
-     farm/cabin/villa → house; residential → apartments from 250 m² or 4
+     farm/cabin/villa/presbytery → house; residential → apartments from 250 m² or 4
      levels, else house; apartments/dormitory/flats/hotel → apartments;
      terrace/townhouse → townhouse; garage/garages/carport → garage;
      shed/hut/allotment_house/roof/greenhouse/toilets/service/container → shed;
@@ -170,7 +177,8 @@ does not depend on element order.
 
 ## Not done / open
 
-- Core builds `parts`; special buildings are still emitted with `detail: 'massing'`.
+- Core builds `parts`; special buildings other than places of worship are still
+  emitted with `detail: 'massing'`.
 - `roof:angle`, `building:material`, `roof:material` are not read.
 - `building=roof`, `carport` and similar open-sided roofs map to the `canopy`
   type; `roof:shape=sawtooth` is passed through.

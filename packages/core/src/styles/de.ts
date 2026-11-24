@@ -1,4 +1,4 @@
-import type { BuildingType } from '../types';
+import type { BuildingType, Faith, PartVolume, RoofProfile } from '../types';
 import type {
   BalconyStyle,
   CanopyStyle,
@@ -8,6 +8,7 @@ import type {
   RoofDetailStyle,
   RowKind,
   SocketTable,
+  SteepleStyle,
   StylePack,
   TileRole,
   TrimStyle,
@@ -36,7 +37,9 @@ export interface TileOptions {
   up?: string;
   down?: string;
   minWidth?: number;
+  maxWidth?: number;
   blockedOk?: boolean;
+  volumes?: readonly PartVolume[];
 }
 
 export function tile(id: string, piece: string, role: TileRole, o: TileOptions = {}): FacadeTile {
@@ -56,8 +59,10 @@ export function tile(id: string, piece: string, role: TileRole, o: TileOptions =
     down: o.down ?? (v === 'door' ? 'solid' : v),
     weight: o.weight ?? 1,
     variant: o.variant,
+    volumes: o.volumes,
     minWidth: o.minWidth,
     blockedOk: o.blockedOk ?? role === 'blank',
+    ...(o.maxWidth !== undefined ? { maxWidth: o.maxWidth } : {}),
   };
 }
 
@@ -749,6 +754,412 @@ const canopy: TypeStyle = {
 };
 
 /** Roof decoration probabilities per type; see RoofDetailStyle. */
+// --- Worship ----------------------------------------------------------------
+
+/** Openings that only the top row of a tower may take: nothing may stand above a belfry. */
+const BELFRY = { up: 'bel', down: 'bel' };
+const MAIN: readonly PartVolume[] = ['main'];
+const TOWER: readonly PartVolume[] = ['tower'];
+
+/**
+ * Baroque bell roof ("welsche Haube") with a lantern and a small onion on top, as
+ * one outline swept around the tower: (scale of the footprint, share of the height).
+ */
+const BELL_LANTERN: RoofProfile = [
+  [1.08, 0],
+  [1.12, 0.05],
+  [1.04, 0.14],
+  [0.82, 0.25],
+  [0.56, 0.33],
+  [0.4, 0.37],
+  [0.34, 0.39],
+  [0.34, 0.56],
+  [0.42, 0.58],
+  [0.5, 0.64],
+  [0.46, 0.72],
+  [0.3, 0.8],
+  [0.12, 0.88],
+  [0.04, 0.94],
+  [0, 1],
+];
+
+/** Bell roof without the lantern, for ridge turrets. */
+const BELL: RoofProfile = [
+  [1.1, 0],
+  [1.2, 0.08],
+  [1.12, 0.2],
+  [0.8, 0.36],
+  [0.44, 0.5],
+  [0.2, 0.62],
+  [0.1, 0.78],
+  [0, 1],
+];
+
+/** Onion of an orthodox church: a narrow neck, a full bulb, a long point. */
+const BULB: RoofProfile = [
+  [0.86, 0],
+  [0.86, 0.06],
+  [1.14, 0.16],
+  [1.3, 0.28],
+  [1.3, 0.38],
+  [1.12, 0.5],
+  [0.78, 0.62],
+  [0.44, 0.73],
+  [0.2, 0.83],
+  [0.07, 0.92],
+  [0, 1],
+];
+
+const GILDED = '#c9a227';
+const ORTHODOX: readonly Faith[] = ['orthodox'];
+
+/**
+ * West towers for churches mapped without parts, by architecture. Sizes are
+ * multiples of the shaft's width, which is half the width of the nave.
+ */
+const towers: readonly SteepleStyle[] = [
+  // Gothic: an octagonal belfry between four pinnacles, and a tall spire.
+  {
+    variants: ['gothic'],
+    weight: 3,
+    rise: 0.35,
+    stages: [{ plan: 'octagon', width: 0.86, walls: 0.95 }],
+    roof: { shape: 'pyramidal', height: 3 },
+    pinnacles: { width: 0.2, walls: 0.4, roof: 0.75 },
+  },
+  // Gothic, plainer: the spire stands straight on the square shaft.
+  { variants: ['gothic'], weight: 1.5, rise: 1.2, roof: { shape: 'pyramidal', height: 2.6 } },
+  // Romanesque: a sturdy shaft under a low pyramid.
+  { variants: ['romanesque'], weight: 2, rise: 1.15, roof: { shape: 'pyramidal', height: 1.1 } },
+  // Romanesque with an octagonal top stage.
+  {
+    variants: ['romanesque'],
+    weight: 1,
+    rise: 0.4,
+    stages: [{ plan: 'octagon', width: 1, walls: 0.8 }],
+    roof: { shape: 'pyramidal', height: 1.3 },
+  },
+  // Baroque: octagonal belfry, bell roof, lantern, small onion.
+  {
+    variants: ['classic'],
+    weight: 3,
+    rise: 0.35,
+    stages: [{ plan: 'octagon', width: 1, walls: 0.9 }],
+    roof: { shape: 'onion', height: 1.9, profile: BELL_LANTERN },
+  },
+  // Classicist: a narrower square stage under a low pyramid.
+  {
+    variants: ['classic'],
+    weight: 1,
+    rise: 0.5,
+    stages: [{ plan: 'square', width: 0.78, walls: 0.9 }],
+    roof: { shape: 'pyramidal', height: 0.75 },
+  },
+  // Post-war: a plain campanile, flat or with a shallow pyramid.
+  { variants: ['modern'], weight: 2, rise: 1.6, roof: { shape: 'flat', height: 0 } },
+  { variants: ['modern'], weight: 1, rise: 1.4, roof: { shape: 'pyramidal', height: 0.5 } },
+  // Orthodox: an octagonal drum under a gilded onion.
+  {
+    faiths: ORTHODOX,
+    weight: 1,
+    rise: 0.3,
+    stages: [{ plan: 'octagon', width: 0.9, walls: 0.8 }],
+    roof: { shape: 'onion', height: 1.5, profile: BULB, colour: GILDED },
+  },
+];
+
+/** Ridge turrets (Dachreiter) for small churches and chapels. */
+const turrets: readonly SteepleStyle[] = [
+  { variants: ['gothic'], weight: 1, rise: 1.5, roof: { shape: 'pyramidal', height: 3.2 } },
+  { variants: ['romanesque'], weight: 1, rise: 1.4, roof: { shape: 'pyramidal', height: 1.5 } },
+  {
+    variants: ['classic'],
+    weight: 2,
+    plan: 'octagon',
+    rise: 1.15,
+    roof: { shape: 'onion', height: 1.5, profile: BELL },
+  },
+  { variants: ['classic'], weight: 1, rise: 1.4, roof: { shape: 'pyramidal', height: 2.2 } },
+  { variants: ['modern'], weight: 1, rise: 1.6, roof: { shape: 'pyramidal', height: 1.2 } },
+  {
+    faiths: ORTHODOX,
+    weight: 1,
+    plan: 'octagon',
+    rise: 1.45,
+    roof: { shape: 'onion', height: 1.5, profile: BULB, colour: GILDED },
+  },
+];
+
+/**
+ * Churches, chapels, mosques, synagogues. See plan/styles/worship.md.
+ *
+ * Rows go by volume (`rows`), not by level: the main body gets one tall row up to
+ * about 24 m of wall (one window per bay from floor to eaves) and two or three
+ * above that; towers get stages about as high as they are wide, with a belfry in
+ * the top one. Tiles are split by volume (main body, tower; small parts stay
+ * blank) and by variant, the architecture (OSM `building:architecture`, or rolled
+ * from the era):
+ *   romanesque  small round-arched windows high in the wall
+ *   gothic      tall pointed windows with tracery, buttresses between the bays
+ *   classic     baroque and classicist: tall round-arched windows with a frame
+ *   modern      post-war: narrow slits from floor to roof
+ */
+/** Probability that a church mapped as a plain rectangle gets a polygonal east end. */
+const APSE: Curve = [[0, 0.85], [0.45, 0.6], [0.6, 0.1]];
+
+const worship: TypeStyle = {
+  // Not used for the rows (see `rows`); the wall height comes from the width (resolve.ts).
+  levelHeight: [[0, 10], [1, 9]],
+  groundExtra: 0,
+  levels: [[1, 1]],
+  rows: { main: 16, towerPerWidth: 1.1, towerMin: 3, towerMax: 9 },
+  roofShapes: [
+    ['gabled', [[0, 6], [1, 3]]],
+    ['hipped', 1],
+    ['flat', [[0.5, 0], [1, 2]]],
+  ],
+  roofPitch: [[0, 52], [0.5, 45], [1, 30]],
+  roofPitchSpread: 4,
+  overhang: [[0, 0.3], [1, 0.2]],
+  parapet: 0.4,
+  bayWidth: [[0, 4.4], [1, 4.2]],
+  openingProbe: 0.34,
+  pierBays: true,
+  straightEaves: true,
+  hippedEnds: true,
+  steeples: { towers, turrets, apse: APSE },
+  towerClock: [[0, 0.9], [0.45, 0.7], [0.6, 0.25]],
+  plinth: [[0, 0.8], [1, 0.3]],
+  wallStyles: [['plain', 1]],
+  variants: [
+    ['romanesque', [[0, 2], [0.4, 1], [0.55, 0]]],
+    ['gothic', [[0, 5], [0.4, 3], [0.55, 0]]],
+    ['classic', [[0, 2], [0.4, 2], [0.55, 0]]],
+    ['modern', [[0.45, 0], [0.6, 4], [1, 5]]],
+  ],
+  tiles: [
+    // Plain wall: common on tower shafts, rare on the main body, where every free bay wants its window.
+    tile('blank', 'wall', 'blank', { weight: 0.4, volumes: ['tower', 'small'] }),
+    tile('blank_main', 'wall', 'blank', { weight: 0.02, volumes: MAIN }),
+    // Portals: the first that fits the bay is taken; narrow bays fall back to the plain door.
+    tile('portal_romanesque', 'portal', 'door', {
+      rows: GROUND,
+      variant: 'romanesque',
+      minWidth: 2.6,
+      params: { w: 2, h: 3.4, arch: 0.5, steps: 3, rose: 0.2, spokes: 0 },
+    }),
+    tile('portal_gothic', 'portal', 'door', {
+      rows: GROUND,
+      variant: 'gothic',
+      minWidth: 2.6,
+      params: { w: 2.2, h: 4, arch: 0.8, pointed: 1, steps: 3, rose: 0.3, spokes: 12 },
+    }),
+    tile('portal_classic', 'portal', 'door', {
+      rows: GROUND,
+      variant: 'classic',
+      minWidth: 2.6,
+      params: { w: 2.1, h: 3.5, arch: 0.5, steps: 1, frame: 1, rose: 0.17, spokes: 0 },
+    }),
+    tile('portal_modern', 'portal', 'door', {
+      rows: GROUND,
+      variant: 'modern',
+      minWidth: 2.6,
+      params: { w: 2.6, h: 3, arch: 0, steps: 1, glass: 1, frame: 1, rose: 0.3, spokes: 0 },
+    }),
+    tile('door', 'door', 'door', {
+      rows: GROUND,
+      params: { w: 1.5, h: 2.6, double: 1, glass: 0 },
+    }),
+    // Main body: one big window per bay; bays under 2 m (the faces of mapped buttresses) stay plain.
+    tile('win_romanesque', 'window', 'window', {
+      variant: 'romanesque',
+      volumes: MAIN,
+      weight: 6,
+      minWidth: 2,
+      params: { w: 0.32, h: 0.44, sill: 0.4, arch: 0.5, segments: 6, slim: 0.5, frame: 1, sillBox: 1 },
+    }),
+    tile('win_gothic', 'window', 'window', {
+      variant: 'gothic',
+      volumes: MAIN,
+      weight: 6,
+      minWidth: 2,
+      params: {
+        w: 0.46,
+        h: 0.62,
+        sill: 0.22,
+        arch: 0.95,
+        pointed: 1,
+        segments: 6,
+        slim: 0.36,
+        mullionV: 1,
+        tracery: 1,
+        buttress: 1.1,
+      },
+    }),
+    tile('win_classic', 'window', 'window', {
+      variant: 'classic',
+      volumes: MAIN,
+      weight: 6,
+      minWidth: 2,
+      params: {
+        w: 0.4,
+        h: 0.54,
+        sill: 0.26,
+        arch: 0.5,
+        segments: 6,
+        slim: 0.5,
+        frame: 1,
+        sillBox: 1,
+        mullionV: 1,
+        mullionH: 2,
+      },
+    }),
+    tile('win_modern', 'window', 'window', {
+      variant: 'modern',
+      volumes: MAIN,
+      weight: 6,
+      minWidth: 2,
+      params: { w: 0.16, h: 0.86, sill: 0.06 },
+    }),
+    // Towers: slits in the shaft, a clock below the belfry, louvred openings at the top.
+    tile('slit_round', 'window', 'window', {
+      volumes: TOWER,
+      rows: ['ground', 'upper'],
+      down: 'solid',
+      maxWidth: 3,
+      weight: [[0, 2], [0.45, 2], [0.55, 0]],
+      params: { w: 0.12, h: 0.3, sill: 0.4, arch: 0.5, slim: 0.3 },
+    }),
+    tile('slit_modern', 'window', 'window', {
+      volumes: TOWER,
+      rows: ['ground', 'upper'],
+      down: 'solid',
+      weight: [[0.45, 0], [0.6, 1]],
+      params: { w: 0.1, h: 0.7, sill: 0.15, slim: 0.12 },
+    }),
+    // Larger towers also get proper windows in the shaft.
+    tile('lancet_gothic', 'window', 'window', {
+      variant: 'gothic',
+      volumes: TOWER,
+      rows: ['ground', 'upper'],
+      down: 'solid',
+      minWidth: 3,
+      weight: 2.5,
+      params: { w: 0.26, h: 0.5, sill: 0.25, arch: 0.95, pointed: 1, segments: 6, slim: 0.3, mullionV: 1, tracery: 1 },
+    }),
+    tile('lancet_round', 'window', 'window', {
+      volumes: TOWER,
+      rows: ['ground', 'upper'],
+      down: 'solid',
+      minWidth: 3,
+      weight: [[0, 1.5], [0.45, 1.5], [0.55, 0]],
+      params: { w: 0.24, h: 0.34, sill: 0.36, arch: 0.5, segments: 6, slim: 0.45, mullionV: 1 },
+    }),
+    tile('clock', 'clock', 'clock', { volumes: TOWER, minWidth: 2.6, up: 'solid', down: 'solid' }),
+    tile('belfry_round', 'window', 'window', {
+      ...BELFRY,
+      variant: 'romanesque',
+      volumes: TOWER,
+      rows: UP,
+      weight: 20,
+      params: { w: 0.44, h: 0.42, sill: 0.34, arch: 0.5, segments: 6, slim: 0.6, louvre: 1, mullionV: 1, twin: 1 },
+    }),
+    tile('belfry_gothic', 'window', 'window', {
+      ...BELFRY,
+      variant: 'gothic',
+      volumes: TOWER,
+      rows: UP,
+      weight: 20,
+      params: {
+        w: 0.44,
+        h: 0.56,
+        sill: 0.22,
+        arch: 0.95,
+        pointed: 1,
+        segments: 6,
+        slim: 0.42,
+        louvre: 1,
+        mullionV: 1,
+        tracery: 1,
+        twin: 1,
+      },
+    }),
+    tile('belfry_classic', 'window', 'window', {
+      ...BELFRY,
+      variant: 'classic',
+      volumes: TOWER,
+      rows: UP,
+      weight: 20,
+      params: { w: 0.42, h: 0.46, sill: 0.28, arch: 0.5, segments: 6, slim: 0.55, louvre: 1, frame: 1, twin: 1 },
+    }),
+    tile('belfry_modern', 'window', 'window', {
+      ...BELFRY,
+      variant: 'modern',
+      volumes: TOWER,
+      rows: UP,
+      weight: 20,
+      params: { w: 0.7, h: 0.3, sill: 0.55, louvre: 1 },
+    }),
+  ],
+  sockets: {
+    h: { w: ['w'] },
+    v: {
+      solid: ['solid', 'win', 'bel'],
+      win: ['win', 'solid', 'bel'],
+      door: ['solid', 'win', 'bel'],
+      bel: [],
+    },
+  },
+  symmetry: 1,
+  // No trim on the faces of mapped buttresses.
+  trim: {
+    // String courses between the stages of a tower (the main body is one row and gets none).
+    band: [[0, 0.9], [0.45, 0.7], [0.5, 0]],
+    cornice: [[0, 0.8], [0.45, 0.5], [0.5, 0]],
+    minWall: 4,
+  },
+  palette: {
+    wall: [
+      // Light limestone and concrete for post-war buildings (no weight before, so older ones roll as ever).
+      ['#e6dfd0', [[0.5, 0], [0.7, 2]]],
+      ['#cdbb98', [[0, 3], [0.5, 1], [1, 0.3]]],
+      ['#c2baa6', [[0, 2], [1, 1]]],
+      ['#9c4f38', [[0, 2], [0.5, 1], [1, 0.3]]],
+      ['#ece7dc', [[0, 1.5], [1, 2]]],
+      ['#b8b5ae', [[0.4, 0], [1, 3]]],
+    ],
+    roof: [
+      ['#4a4f57', 3],
+      ['#a8432f', 2],
+      ['#5e8f7a', 1],
+    ],
+    // Gravel and membrane; no planted roofs.
+    roofFlat: [
+      ['#9a9a94', 3],
+      ['#6a6d70', 2],
+    ],
+    // Slate, patinated copper, lead.
+    spire: [
+      ['#4a4f57', 3],
+      ['#5e8f7a', 3],
+      ['#7d8790', 1],
+    ],
+    // Stone dressings rather than painted wood.
+    trim: [
+      ['#e6dfd0', 3],
+      ['#c2b8a3', 2],
+      ['#8f8a80', 1],
+    ],
+    frame: [
+      ['#ded6c4', 3],
+      ['#b9b2a2', 2],
+      ['#55585c', [[0.45, 0], [1, 3]]],
+    ],
+    // Church glass is dark from outside.
+    glass: '#6f8ea8',
+  },
+};
+
 const roofDetails: Partial<Record<BuildingType, RoofDetailStyle>> = {
   house: {
     dormer: [[0, 0.25], [0.5, 0.3], [0.75, 0.55], [1, 0.2]],
@@ -785,6 +1196,7 @@ const roofDetails: Partial<Record<BuildingType, RoofDetailStyle>> = {
     turret: [[0, 0.6], [0.45, 0.4], [0.5, 0]],
   },
   store: { clutter: 0.8, falseFront: [[0, 0.9], [0.6, 0.7], [1, 0.4]] },
+  worship: { finial: 1, gableOculus: [[0, 0.9], [0.5, 0.6], [1, 0.3]] },
 };
 
 const withDetails = (type: BuildingType, style: TypeStyle): TypeStyle => ({
@@ -804,6 +1216,7 @@ export const deTypes: Record<BuildingType, TypeStyle> = {
   station: withDetails('station', station),
   store: withDetails('store', store),
   canopy,
+  worship: withDetails('worship', worship),
 };
 
 export const dePack: StylePack = { id: 'de', version: 1, palette, types: deTypes };

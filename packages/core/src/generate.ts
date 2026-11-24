@@ -5,19 +5,34 @@ import { mergeMeshes } from './mesh/merge';
 import { assemble } from './pipeline/assemble';
 import { autoParts } from './pipeline/autoParts';
 import { buildContext } from './pipeline/context';
-import { layoutFacade } from './pipeline/facade/layout';
+import { type FacadeHints, layoutFacade } from './pipeline/facade/layout';
 import { type Corridor, buildingCorridors, findPassages } from './pipeline/passages';
 import { platformRoofs } from './pipeline/platform';
 import { resolve } from './pipeline/resolve';
 import { buildRoof } from './pipeline/roofs';
+import { fitEaves, straightEaves, trimBumps } from './pipeline/roofs/eaves';
+import {
+  blockingTop,
+  frontOf,
+  frontPart,
+  lidOver,
+  partRoofColour,
+  partWallColour,
+  setVolume,
+  volumeOf,
+  worshipParts,
+} from './pipeline/volumes';
 import { applyRoofToWalls, buildWalls } from './pipeline/walls';
+import { getStylePack } from './styles/registry';
 import type {
   BuildingDebug,
   BuildingInput,
   BuildingMesh,
   NeighbourInput,
   PartInput,
+  PartVolume,
   ResolvedSpec,
+  RoofGeometry,
   WallContext,
 } from './types';
 
@@ -27,7 +42,9 @@ const now = (): number => (clock ? clock.now() : 0);
 
 /** Cheap: what the generator would decide for this input, without building geometry. */
 export function resolveBuilding(input: BuildingInput): ResolvedSpec {
-  return resolve(input);
+  const spec = resolve(input);
+  setVolume(spec, 'main');
+  return spec;
 }
 
 /**
@@ -40,14 +57,29 @@ export function resolveBuilding(input: BuildingInput): ResolvedSpec {
  */
 export function generateBuilding(input: BuildingInput): BuildingMesh {
   if (input.parts && input.parts.length > 0) return generateParts(input, input.parts);
-  // Towers without mapped parts get a podium, shaft and crown of their own.
+  // Towers without mapped parts get a podium, shaft and crown of their own, churches a tower.
   const tiers = autoParts(input);
   if (tiers) return generateParts(input, tiers);
+  const worship = worshipParts(input);
+  if (worship) return generateParts(worship.input, worship.parts);
   return generateOne(input);
 }
 
-/** `corridors`: for a part, the passages found on the whole building; it does not look at the roads itself. */
-function generateOne(input: BuildingInput, corridors?: readonly Corridor[]): BuildingMesh {
+/** Churches have their portal at the west end whatever the streets do; other faiths follow the street. */
+const facesWest = (spec: ResolvedSpec): boolean =>
+  spec.type === 'worship' && (spec.faith === 'christian' || spec.faith === 'orthodox');
+
+/**
+ * `corridors`: for a part, the passages found on the whole building; it does not look at the roads itself.
+ * `volume`: for a part, its role within the building (see pipeline/volumes.ts).
+ * `hints`: for a part, what the facade stage has to know about the whole building.
+ */
+function generateOne(
+  input: BuildingInput,
+  corridors?: readonly Corridor[],
+  volume: PartVolume = 'main',
+  hints?: FacadeHints,
+): BuildingMesh {
   const timings: Record<string, number> = {};
   let t = now();
   const lap = (name: string): void => {
@@ -57,6 +89,7 @@ function generateOne(input: BuildingInput, corridors?: readonly Corridor[]): Bui
   };
 
   const spec = resolve(input);
+  setVolume(spec, volume);
   lap('resolve');
   const walls = buildWalls(spec);
   const passages = findPassages(input, spec, walls, corridors);
@@ -68,12 +101,30 @@ function generateOne(input: BuildingInput, corridors?: readonly Corridor[]): Bui
   const overhang = walls
     .slice(0, outerCount)
     .map((_, i) => ((context[i] as WallContext).openFraction > 0.5 ? spec.roof.overhang : 0));
-  const roof = buildRoof({ spec, walls, overhang, eave: spec.base + spec.wallHeight });
-  applyRoofToWalls(walls, roof);
+  const eave = spec.base + spec.wallHeight;
+  // Mapped buttresses in the outline: the roof is built without them, so its eave runs straight.
+  const style = getStylePack(spec.packId).types[spec.type];
+  const eaves = style.straightEaves ? straightEaves(spec) : null;
+  const hippedEnds = style.hippedEnds === true;
+  let roof: RoofGeometry;
+  if (eaves) {
+    // One overhang all round; none when the building stands against a neighbour anywhere.
+    const free = context.slice(0, outerCount).every((c) => c.openFraction > 0.5);
+    const even = eaves.spec.footprint.outer.map(() => (free ? spec.roof.overhang : 0));
+    const built = buildRoof({ spec: eaves.spec, walls: eaves.walls, overhang: even, eave, hippedEnds });
+    roof = fitEaves(built, eaves, eave);
+    applyRoofToWalls(walls, roof);
+    trimBumps(walls, eaves);
+  } else {
+    roof = buildRoof({ spec, walls, overhang, eave, hippedEnds });
+    applyRoofToWalls(walls, roof);
+  }
   lap('roof');
 
   const full = (input.detail ?? 'full') === 'full';
-  const facade = full ? layoutFacade(input, spec, walls, context) : null;
+  // A building of its own is its own front part.
+  const own: FacadeHints = hints ?? (facesWest(spec) ? { front: frontOf(spec.metrics.box) } : {});
+  const facade = full ? layoutFacade(input, spec, walls, context, own) : null;
   lap('facade');
 
   // Parts standing on this roof (the upper tiers of a tower): roof details keep clear of them.
@@ -125,6 +176,7 @@ function partInput(
     roof: { ...(part.roof ?? (hasOwnSize ? undefined : input.roof)), overhang: 0 },
     colours: { ...input.colours, ...part.colours },
     facadeVariant: part.facadeVariant ?? input.facadeVariant,
+    faith: input.faith,
     year: input.year,
     hasAddress: input.hasAddress,
     shop: input.shop,
@@ -142,6 +194,8 @@ function partInput(
   };
 }
 
+/** A part of a place of worship that starts this far above the ground has the body under it. */
+const RAISED = 2.5;
 /** Remainder pieces thinner than this (2 × area / perimeter, metres) are mapping slivers, not rooms. */
 const MIN_BODY_THICKNESS = 1.2;
 const MIN_BODY_AREA = 4;
@@ -165,9 +219,11 @@ function uncoveredBody(
   inputs: BuildingInput[],
 ): PartInput[] {
   const bodyTop = parent.base + parent.wallHeight;
-  const covering = parts
-    .filter((_, i) => (inputs[i]?.minHeight ?? 0) < bodyTop - 0.5)
-    .map((p) => p.footprint);
+  // Places of worship: whatever is mapped above the ground has the building under it (a porch
+  // under its mapped roof, the hall under a tower's upper stage), never an open passage.
+  const worship = parent.type === 'worship';
+  const coversBelow = worship ? parent.base + RAISED : bodyTop - 0.5;
+  const covering = parts.filter((_, i) => (inputs[i]?.minHeight ?? 0) < coversBelow).map((p) => p.footprint);
   const outline = { outer: parent.footprint.outer, holes: parent.footprint.holes };
   let pieces = difference(outline, covering);
   if (pieces === null) {
@@ -176,18 +232,30 @@ function uncoveredBody(
     parent.notes.push('could not subtract the parts from the outline');
     pieces = covered < 0.6 * parent.metrics.area ? [outline] : [];
   }
+  // Parts mapped above the ground that were not subtracted: the body may lie under them.
+  const raised = worship
+    ? parts
+        .map((p, i) => ({ footprint: p.footprint, base: inputs[i]?.minHeight ?? 0 }))
+        .filter((r) => r.base >= coversBelow)
+    : [];
   return pieces
     .filter((p) => {
       const area = polygonArea(p);
       return area >= MIN_BODY_AREA && (2 * area) / perimeter(p.outer) >= MIN_BODY_THICKNESS;
     })
-    .map((footprint) => ({
-      footprint,
-      height: input.height,
-      minHeight: input.minHeight,
-      levels: input.levels,
-      roof: input.roof,
-    }));
+    .map((footprint) => {
+      // Places of worship: a piece under a raised part (a porch under its mapped roof) ends where that begins.
+      const lid = raised.length > 0 ? lidOver(footprint, raised) : undefined;
+      if (lid !== undefined && lid > (input.minHeight ?? 0) + 0.5)
+        return { footprint, height: lid, minHeight: input.minHeight, roof: { shape: 'flat' as const } };
+      return {
+        footprint,
+        height: input.height,
+        minHeight: input.minHeight,
+        levels: input.levels,
+        roof: input.roof,
+      };
+    });
 }
 
 /** Courtyard overlap below this (m²) is a mapping inaccuracy at the edge, not a part over the courtyard. */
@@ -246,13 +314,36 @@ function generateParts(input: BuildingInput, mapped: readonly PartInput[]): Buil
   ];
 
   // First pass: resolve every part to learn its wall top, so parts can block each other correctly.
-  const specs: (ResolvedSpec | null)[] = inputs.map((p) => {
+  const resolvePart = (p: BuildingInput): ResolvedSpec | null => {
     try {
       return resolve(p);
     } catch {
       return null; // a degenerate part is left out, the rest of the building still builds
     }
-  });
+  };
+  const specs = inputs.map(resolvePart);
+  // Places of worship: each part's role picks its rows and tiles; towers without a mapped roof
+  // get a pyramid, and parts without a mapped roof colour one that suits their role.
+  const worship = parent.type === 'worship';
+  const volumes: PartVolume[] = specs.map((s) => (s && worship ? volumeOf(s) : 'main'));
+  if (worship)
+    volumes.forEach((v, i) => {
+      let p = inputs[i];
+      let s = specs[i];
+      if (!p || !s) return;
+      if (v === 'tower' && p.roof?.shape === undefined) {
+        p = { ...p, roof: { ...p.roof, shape: 'pyramidal' } };
+        s = resolvePart(p);
+        if (!s) return;
+      }
+      const roofColour = partRoofColour(input, p, s, v);
+      if (roofColour !== undefined) p = { ...p, colours: { ...p.colours, roof: roofColour } };
+      const wallColour = partWallColour(s, v);
+      if (wallColour !== undefined) p = { ...p, colours: { ...p.colours, wall: wallColour } };
+      if (p === inputs[i]) return;
+      inputs[i] = p;
+      specs[i] = resolvePart(p);
+    });
   const bounds = specs.map((s) => (s ? ringBounds(s.footprint.outer) : null));
   // Passages are judged on the whole outline and then cut into each part, so they come out continuous.
   const corridors = buildingCorridors(input, parent);
@@ -267,6 +358,18 @@ function generateParts(input: BuildingInput, mapped: readonly PartInput[]): Buil
       entranceArea = area;
       entrance = i;
     }
+  });
+  // Churches: the portal belongs to the west front, whichever part that is (tower, porch, nave).
+  const front = facesWest(parent) ? frontOf(parent.metrics.box) : undefined;
+  if (front) {
+    const foremost = frontPart(specs, volumes, front);
+    if (foremost >= 0) entrance = foremost;
+  }
+  // One tower carries the clock faces: the one with the largest footprint.
+  let clockTower = -1;
+  specs.forEach((s, i) => {
+    if (!s || volumes[i] !== 'tower') return;
+    if (clockTower < 0 || s.metrics.area > (specs[clockTower]?.metrics.area ?? 0)) clockTower = i;
   });
 
   const meshes: BuildingMesh[] = [];
@@ -289,7 +392,7 @@ function generateParts(input: BuildingInput, mapped: readonly PartInput[]): Buil
         return;
       others.push({
         footprint: { outer: other.footprint.outer },
-        height: other.base + other.wallHeight,
+        height: worship ? blockingTop(other) : other.base + other.wallHeight,
         minHeight: other.base,
         sameGroup: true,
       });
@@ -301,6 +404,8 @@ function generateParts(input: BuildingInput, mapped: readonly PartInput[]): Buil
         entrance: i === entrance && input.entrance !== false,
       },
       corridors,
+      volumes[i],
+      { front: i === entrance ? front : undefined, clock: i === clockTower },
     );
     meshes.push(mesh);
     if (mesh.debug) {

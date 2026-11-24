@@ -25,6 +25,7 @@ This folder is the living design. Update it in the same change as the code.
 | [styles/de-residential.md](styles/de-residential.md) | German pack |
 | [styles/us-suburban.md](styles/us-suburban.md) | US suburban pack |
 | [styles/non-residential.md](styles/non-residential.md) | Office, skyscraper, industrial, station, store |
+| [styles/worship.md](styles/worship.md) | Churches and other places of worship: part roles, windows, belfries, towers |
 | [03-determinism.md](03-determinism.md) | Seeds, sub-seeds, versioning |
 | [04-performance.md](04-performance.md) | Workers, merging, detail levels, budgets |
 | [adapters/three.md](adapters/three.md) | three.js adapter |

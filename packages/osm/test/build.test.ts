@@ -88,11 +88,14 @@ describe('buildInputs on the Ulm fixture', () => {
     expect(result.meta[index]?.special).toBe(false);
   });
 
-  it('marks the Minster special and attaches its parts', () => {
+  it('builds the Minster as a place of worship and attaches its parts', () => {
     const { input, index } = find(result, MINSTER);
     const meta = result.meta[index];
-    expect(meta?.special).toBe(true);
-    expect(input.detail).toBe('massing');
+    // building=cathedral: a type of its own at full detail, no longer a massing-only special.
+    expect(meta?.special).toBe(false);
+    expect(input.type).toBe('worship');
+    expect(input.detail).toBeUndefined();
+    expect(input.facadeVariant).toBe('gothic');
     expect(input.parts?.length).toBe(61);
     expect(meta?.partIds).toHaveLength(61);
     expect(input.colours?.wall).toBe('#A0A0A0');
